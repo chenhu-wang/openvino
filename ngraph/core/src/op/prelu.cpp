@@ -34,13 +34,17 @@ NGRAPH_SUPPRESS_DEPRECATED_START
 
 NGRAPH_RTTI_DEFINITION(op::PRelu, "PRelu", 0);
 
-op::PRelu::PRelu()
+op::PRelu::PRelu(const AutoBroadcastSpec& auto_broadcast)
     : FusedOp()
+    , m_autob(auto_broadcast)
 {
 }
 
-op::PRelu::PRelu(const Output<Node>& data, const Output<Node>& slope)
+op::PRelu::PRelu(const Output<Node>& data,
+                 const Output<Node>& slope,
+                 const AutoBroadcastSpec& auto_broadcast)
     : FusedOp({data, slope})
+    , m_autob(auto_broadcast)
 {
     constructor_validate_and_infer_types();
 }
@@ -48,6 +52,7 @@ op::PRelu::PRelu(const Output<Node>& data, const Output<Node>& slope)
 bool ngraph::op::v0::PRelu::visit_attributes(AttributeVisitor& visitor)
 {
     NGRAPH_OP_SCOPE(v0_PRelu_visit_attributes);
+    visitor.on_attribute("auto_broadcast", m_autob);
     return true;
 }
 
@@ -99,33 +104,38 @@ shared_ptr<Node> op::PRelu::clone_with_new_inputs(const OutputVector& new_args) 
     {
         throw ngraph_error("Incorrect number of new arguments");
     }
-    return make_shared<PRelu>(new_args.at(0), new_args.at(1));
+    return make_shared<PRelu>(new_args.at(0), new_args.at(1), this->get_autob());
 }
 
 namespace prelu
 {
     template <element::Type_t ET>
-    bool evaluate(const HostTensorPtr& arg, const HostTensorPtr& slope, const HostTensorPtr& out)
+    bool evaluate(const HostTensorPtr& arg,
+                  const HostTensorPtr& slope,
+                  const HostTensorPtr& out,
+                  const op::AutoBroadcastSpec& broadcast_spec)
     {
         runtime::reference::prelu(arg->get_data_ptr<ET>(),
                                   slope->get_data_ptr<ET>(),
                                   out->get_data_ptr<ET>(),
                                   arg->get_shape(),
-                                  slope->get_shape());
+                                  slope->get_shape(),
+                                  broadcast_spec);
         return true;
     }
 
     bool evaluate_prelu(const HostTensorPtr& arg,
                         const HostTensorPtr& slope,
-                        const HostTensorPtr& out)
+                        const HostTensorPtr& out,
+                        const op::AutoBroadcastSpec& broadcast_spec)
     {
         bool rc = true;
         switch (arg->get_element_type())
         {
-            NGRAPH_TYPE_CASE(evaluate_prelu, i8, arg, slope, out);
-            NGRAPH_TYPE_CASE(evaluate_prelu, bf16, arg, slope, out);
-            NGRAPH_TYPE_CASE(evaluate_prelu, f16, arg, slope, out);
-            NGRAPH_TYPE_CASE(evaluate_prelu, f32, arg, slope, out);
+            NGRAPH_TYPE_CASE(evaluate_prelu, i8, arg, slope, out, broadcast_spec);
+            NGRAPH_TYPE_CASE(evaluate_prelu, bf16, arg, slope, out, broadcast_spec);
+            NGRAPH_TYPE_CASE(evaluate_prelu, f16, arg, slope, out, broadcast_spec);
+            NGRAPH_TYPE_CASE(evaluate_prelu, f32, arg, slope, out, broadcast_spec);
         default: rc = false; break;
         }
         return rc;
@@ -135,5 +145,5 @@ namespace prelu
 bool op::PRelu::evaluate(const HostTensorVector& outputs, const HostTensorVector& inputs) const
 {
     NGRAPH_OP_SCOPE(v0_PRelu_evaluate);
-    return prelu::evaluate_prelu(inputs[0], inputs[1], outputs[0]);
+    return prelu::evaluate_prelu(inputs[0], inputs[1], outputs[0], get_autob());
 }
