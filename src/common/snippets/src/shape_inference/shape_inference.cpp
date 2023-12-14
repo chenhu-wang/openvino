@@ -42,10 +42,6 @@ const IShapeInferSnippetsFactory::TRegistry IShapeInferSnippetsFactory::registry
         SHAPE_INFER_PREDEFINED(op::IntermediateMemoryBuffer, PassThroughShapeInfer),
         SHAPE_INFER_PREDEFINED(op::Fill, PassThroughShapeInfer),
         SHAPE_INFER_PREDEFINED(ov::op::v0::Parameter, PassThroughShapeInfer),
-        // Note: We should remove Softmax shape infers after the decomposition activity,
-        //       since there won't be any Softmax ops on LIR. Ticket: 112847
-        SHAPE_INFER_PREDEFINED(ov::op::v1::Softmax, PassThroughShapeInfer),
-        SHAPE_INFER_PREDEFINED(ov::op::v8::Softmax, PassThroughShapeInfer),
         SHAPE_INFER_PREDEFINED(ov::op::v1::LogicalNot, PassThroughShapeInfer),
         SHAPE_INFER_PREDEFINED(ov::op::v0::PRelu, PassThroughShapeInfer),
         SHAPE_INFER_PREDEFINED(op::HorizonMax, HorizonOpShapeInfer),
@@ -88,6 +84,8 @@ std::shared_ptr<IShapeInferSnippets> make_shape_inference(const std::shared_ptr<
                ov::is_type<ov::op::util::BinaryElementwiseComparison>(op) ||
                ov::is_type<ov::op::util::BinaryElementwiseLogical>(op)) {
         return std::make_shared<NumpyBroadcastShapeInfer>();
+    } else if (ov::is_type<ov::snippets::op::ReduceBase>(op)) {
+        return std::make_shared<ReduceShapeInfer>(op);
     } else {
         OPENVINO_THROW("Operation type " + std::string(op->get_type_info().name) + " is not supported in Snippets shape inference pipeline");
     }

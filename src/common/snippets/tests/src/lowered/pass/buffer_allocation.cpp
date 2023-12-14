@@ -16,7 +16,7 @@
 #include "snippets/lowered/pass/fuse_loops.hpp"
 #include "snippets/lowered/pass/split_loops.hpp"
 #include "snippets/lowered/pass/insert_buffers.hpp"
-#include "snippets/lowered/pass/softmax_decomposition.hpp"
+#include "snippets/lowered/pass/reduce_decomposition.hpp"
 
 #include "common_test_utils/common_utils.hpp"
 
@@ -69,7 +69,7 @@ void BufferAllocationTest::MarkOp(const std::shared_ptr<ov::Node>& node, const s
 void BufferAllocationTest::ApplyTransformations(const std::shared_ptr<ov::snippets::lowered::pass::PassConfig>& pass_config) {
     ov::snippets::lowered::pass::PassPipeline pipeline(pass_config);
     pipeline.register_pass<ov::snippets::lowered::pass::MarkLoops>(m_vector_size);
-    pipeline.register_pass<ov::snippets::lowered::pass::SoftmaxDecomposition>(m_vector_size);
+    pipeline.register_pass<ov::snippets::lowered::pass::ReduceDecomposition>(m_vector_size);
     pipeline.register_pass<ov::snippets::lowered::pass::FuseLoops>();
     pipeline.register_pass<ov::snippets::lowered::pass::SplitLoops>();
     pipeline.register_pass<ov::snippets::lowered::pass::InsertBuffers>(2);
@@ -140,15 +140,26 @@ std::shared_ptr<ov::Model> MHABufferAllocationTest::GetModel() const {
     const auto relu0 = std::make_shared<ov::op::v0::Relu>(store);
     const auto matmul0 = std::make_shared<ov::snippets::op::Brgemm>(parameter0, relu0);
     const auto relu1 = std::make_shared<ov::op::v0::Relu>(matmul0);
-    const auto softmax = std::make_shared<ov::op::v1::Softmax>(relu1, 3);
-    const auto matmul1 = std::make_shared<ov::snippets::op::Brgemm>(softmax, parameter2);
+
+    // Decomposed Softmax
+    const auto reduce_max = std::make_shared<ov::snippets::op::ReduceMax>(relu1, 3);
+    const auto subtract = std::make_shared<ov::op::v1::Subtract>(relu1, reduce_max);
+    const auto exp = std::make_shared<ov::op::v0::Exp>(subtract);
+
+    const auto reduce_sum = std::make_shared<ov::snippets::op::ReduceSum>(exp, 3);
+    const auto power = std::make_shared<ov::snippets::op::PowerStatic>(reduce_sum, -1.f);
+    const auto multiply = std::make_shared<ov::op::v1::Multiply>(exp, power);
+
+    const auto matmul1 = std::make_shared<ov::snippets::op::Brgemm>(multiply, parameter2);
     const auto relu2 = std::make_shared<ov::op::v0::Relu>(matmul1);
 
     const auto body = std::make_shared<ov::Model>(std::make_shared<ov::op::v0::Result>(relu2), ov::ParameterVector{parameter0, parameter1, parameter2});
 
     MarkOp(load_reshape, subtensor_scalar);
     MarkOp(store, subtensor_scalar);
-    MarkOp(softmax, subtensor_softmax);
+    MarkOp(reduce_max, subtensor_softmax);
+    MarkOp(reduce_sum, subtensor_softmax);
+    MarkOp(power, subtensor_softmax);
 
     MarkBrgemm(matmul0, subtensor_brgemm);
     MarkBrgemm(matmul1, subtensor_brgemm);

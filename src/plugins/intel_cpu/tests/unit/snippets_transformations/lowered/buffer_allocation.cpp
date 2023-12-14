@@ -14,7 +14,7 @@
 #include "snippets/lowered/pass/fuse_loops.hpp"
 #include "snippets/lowered/pass/split_loops.hpp"
 #include "snippets/lowered/pass/insert_buffers.hpp"
-#include "snippets/lowered/pass/softmax_decomposition.hpp"
+#include "snippets/lowered/pass/reduce_decomposition.hpp"
 
 #include "transformations/snippets/x64/shape_inference.hpp"
 #include "transformations/snippets/x64/pass/lowered/brgemm_blocking.hpp"
@@ -80,7 +80,7 @@ protected:
         ov::snippets::lowered::pass::PassPipeline pipeline(pass_config);
         pipeline.register_pass<ov::snippets::lowered::pass::MarkLoops>(m_vector_size);
         pipeline.register_pass<ov::intel_cpu::pass::BrgemmBlocking>();
-        pipeline.register_pass<ov::snippets::lowered::pass::SoftmaxDecomposition>(m_vector_size);
+        pipeline.register_pass<ov::snippets::lowered::pass::ReduceDecomposition>(m_vector_size);
         pipeline.register_pass<ov::snippets::lowered::pass::FuseLoops>();
         pipeline.register_pass<ov::snippets::lowered::pass::SplitLoops>();
         pipeline.register_pass<ov::snippets::lowered::pass::InsertBuffers>(2);
@@ -154,8 +154,17 @@ protected:
         brgemm_cpu0->set_n_block_size(64);
 
         const auto relu1 = std::make_shared<ov::op::v0::Relu>(brgemm_cpu0);
-        const auto softmax = std::make_shared<ov::op::v1::Softmax>(relu1, 3);
-        const auto convert2 = std::make_shared<ov::snippets::op::ConvertSaturation>(softmax, ov::element::bf16);
+
+        // Decomposed Softmax
+        const auto reduce_max = std::make_shared<ov::snippets::op::ReduceMax>(relu1, 3);
+        const auto subtract = std::make_shared<ov::op::v1::Subtract>(relu1, reduce_max);
+        const auto exp = std::make_shared<ov::op::v0::Exp>(subtract);
+
+        const auto reduce_sum = std::make_shared<ov::snippets::op::ReduceSum>(exp, 3);
+        const auto power = std::make_shared<ov::snippets::op::PowerStatic>(reduce_sum, -1.f);
+        const auto multiply = std::make_shared<ov::op::v1::Multiply>(exp, power);
+
+        const auto convert2 = std::make_shared<ov::snippets::op::ConvertSaturation>(multiply, ov::element::bf16);
 
         const auto brgemm_copyb1 = std::make_shared<ov::intel_cpu::BrgemmCopyB>(
             parameter2, ov::element::bf16, ov::intel_cpu::BrgemmCopyB::OnlyRepacking, 0, 0, 0);
@@ -172,7 +181,9 @@ protected:
 
         MarkOp(load_reshape, subtensor_scalar);
         MarkOp(store, subtensor_scalar);
-        MarkOp(softmax, subtensor_softmax);
+        MarkOp(reduce_max, subtensor_softmax);
+        MarkOp(reduce_sum, subtensor_softmax);
+        MarkOp(power, subtensor_softmax);
 
         MarkOp(brgemm_cpu0, subtensor_full);
         MarkOp(brgemm_cpu1, subtensor_full);
