@@ -25,7 +25,7 @@ std::vector<size_t> get_outer_loop_ids(const ExpressionPtr& expr, size_t loop_id
 }
 }  // namespace
 
-InsertLoops::InsertLoops() : Pass() {}
+InsertLoops::InsertLoops() : RangedPass() {}
 
 void InsertLoops::insertion(LinearIR& linear_ir, const LinearIR::LoopManagerPtr& loop_manager, size_t loop_id, bool has_outer_loop) {
     const auto loop_info = loop_manager->get_loop_info(loop_id);
@@ -73,7 +73,7 @@ void InsertLoops::insertion(LinearIR& linear_ir, const LinearIR::LoopManagerPtr&
     linear_ir.insert_node(loop_end, loop_end_inputs, outer_loop_ids, false, loop_end_pos);
 }
 
-bool InsertLoops::run(LinearIR& linear_ir) {
+bool InsertLoops::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) {
     OV_ITT_SCOPED_TASK(ov::pass::itt::domains::SnippetsTransform, "Snippets::InsertLoops")
     if (linear_ir.empty())
         return false;
@@ -81,7 +81,7 @@ bool InsertLoops::run(LinearIR& linear_ir) {
     const auto& loop_manager = linear_ir.get_loop_manager();
 
     std::set<size_t> inserted_loops;
-    for (auto expr_it = linear_ir.begin(); expr_it != linear_ir.end(); expr_it++) {
+    for (auto expr_it = begin; expr_it != end; expr_it++) {
         const auto expr = *expr_it;
         const auto& node = expr->get_node();
         if (ov::is_type<op::LoopBase>(node) ||

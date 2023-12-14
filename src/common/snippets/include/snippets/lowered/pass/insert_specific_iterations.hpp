@@ -11,15 +11,12 @@ namespace snippets {
 namespace lowered {
 namespace pass {
 
-/**
- * @interface InsertMovebroadcast
- * @brief Injects explicit Movebroadcast operations when the most varying dim is broadcasted
- * @ingroup snippets
- */
-class InsertBroadcastMove : public RangedPass {
+class InsertSpecificIterations : public RangedPass {
 public:
-    OPENVINO_RTTI("InsertBroadcastMove", "RangedPass")
+    OPENVINO_RTTI("InsertSpecificIterations", "RangedPass")
     bool run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) override;
+
+    static LinearIR::container copy_loop(const LinearIR& linear_ir, const size_t loop_id);
 };
 
 } // namespace pass

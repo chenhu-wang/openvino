@@ -21,6 +21,7 @@ namespace pass {
  *        Note: The pass requires expression enumeration. It should be executed separately before this pass!
  * @ingroup snippets
  */
+// TODO: works only with m_clusters, no lir or iterators are needed
 class SolveBufferMemory : public Pass {
 public:
     OPENVINO_RTTI("SolveBufferMemory", "Pass")
