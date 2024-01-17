@@ -152,7 +152,9 @@ bool BrgemmBlocking::run(LinearIR& linear_ir, LinearIR::constExprIt begin, Linea
             std::vector<LoopPort> exits{LoopPort(brgemm_expr->get_output_port(0), false)};
             const auto id = loop_manager->mark_loop(loop_begin_it, loop_end_it, k, block_size_k, entries, exits);
             const auto loop_info = loop_manager->get_loop_info(id);
-            loop_info->handlers[LoopInfo::FIRST_ITER].register_pass<SetBrgemmBeta>(0.f);
+            auto handlers = loop_info->get_handlers();
+            handlers[LoopInfo::FIRST_ITER].register_pass<SetBrgemmBeta>(0.f);
+            loop_info->set_handlers(handlers);
         };
 
         apply_k_blocking();

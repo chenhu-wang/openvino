@@ -11,7 +11,14 @@ namespace ov {
 namespace snippets {
 namespace lowered {
 namespace pass {
-
+/**
+ * @interface UpdateSubtensors
+ * @brief The pass updates subtensors of all operations in Loop basing on tail size.
+ * Firstly, the pass updates subtensors of all Loop entry points.
+ * After that, shape inference infrastructure is used to update subtensors of all ops in Loop body
+ * @param m_offset - offset which must be set
+ * @ingroup snippets
+ */
 class UpdateSubtensors : public pass::RangedPass {
 public:
     UpdateSubtensors(size_t tail_size);

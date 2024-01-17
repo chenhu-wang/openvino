@@ -9,6 +9,12 @@
 namespace ov {
 namespace intel_cpu {
 namespace pass {
+/**
+ * @interface SetBrgemmBeta
+ * @brief The pass updates all CPUBrgemm nodes with a new beta value
+ * @param m_beta - beta which must be set
+ * @ingroup snippets
+ */
 class SetBrgemmBeta : public snippets::lowered::pass::RangedPass {
 public:
     SetBrgemmBeta(float beta);

@@ -78,7 +78,7 @@ bool AllocateBuffers::run(lowered::LinearIR& linear_ir, lowered::LinearIR::const
         pipeline.register_pass<NormalizeBufferIDs>();
         pipeline.run(linear_ir);
     } else {
-        InitBuffersDefault(m_buffer_scratchpad_size).run(linear_ir, linear_ir.begin(), linear_ir.end());
+        InitBuffersDefault(m_buffer_scratchpad_size).run(linear_ir, linear_ir.cbegin(), linear_ir.cend());
     }
 
     return m_buffer_scratchpad_size > 0;

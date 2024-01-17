@@ -24,7 +24,7 @@ SplitLoops::SplitLoops() : RangedPass() {}
 bool SplitLoops::can_be_split(const LoopInfoPtr& loop_to_split, const LoopInfoPtr& loop_to_fuse) {
     const auto current_dim_idx = loop_to_split->get_dim_idx();
     const auto parent_dim_idx = loop_to_fuse->get_dim_idx();
-    const auto& handlers = loop_to_split->handlers;
+    const auto& handlers = loop_to_split->get_handlers();
     const bool equal_dim_idxes = current_dim_idx != LoopInfo::UNDEFINED_DIM_IDX && current_dim_idx == parent_dim_idx;
     const bool only_main_body = handlers[LoopInfo::FIRST_ITER].empty() && handlers[LoopInfo::FIRST_ITER].empty();
     return loop_to_split->get_work_amount() == loop_to_fuse->get_work_amount() &&
@@ -87,14 +87,14 @@ bool SplitLoops::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, 
                                                                    loop_to_split->get_entry_points(),
                                                                    loop_to_split->get_exit_points());
                 const auto& new_loop_info = loop_manager->get_loop_info(split_loop_id);
-                new_loop_info->set_outer_splited_loop(true);
-                new_loop_info->handlers = loop_to_split->handlers;
                 const auto work_amount = loop_to_fuse->get_work_amount();
                 const auto increment = loop_to_fuse->get_increment();
                 const auto tail_size = work_amount % increment;
+                auto new_handlers = loop_to_split->get_handlers();
                 if (tail_size != 0) {
-                    new_loop_info->handlers[LoopInfo::LAST_ITER].register_pass<TransformInnerSplitLoop>(tail_size);
+                    new_handlers[LoopInfo::LAST_ITER].register_pass<TransformInnerSplitLoop>(tail_size);
                 }
+                new_loop_info->set_handlers(new_handlers);
                 break;
             }
         }

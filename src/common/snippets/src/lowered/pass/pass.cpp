@@ -27,7 +27,7 @@ void PassPipeline::register_pass(const std::shared_ptr<PassBase>& pass) {
 }
 
 void PassPipeline::run(LinearIR& linear_ir) const {
-    run(linear_ir, linear_ir.begin(), linear_ir.end());
+    run(linear_ir, linear_ir.cbegin(), linear_ir.cend());
 }
 
 void PassPipeline::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) const {

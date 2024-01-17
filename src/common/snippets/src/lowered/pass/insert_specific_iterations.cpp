@@ -78,7 +78,7 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
         const auto& loop_info = loop_manager->get_loop_info(loop_end->get_id());
         const auto work_amount = loop_info->get_work_amount();
         const auto increment = loop_info->get_increment();
-        auto& handlers = loop_info->handlers;
+        const auto& handlers = loop_info->get_handlers();
 
         const auto main_body_begin_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end->get_loop_begin()));
         const auto main_body_end_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
@@ -100,10 +100,11 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
 
         auto copy_and_run_specific_handlers = [&](const PassPipeline& handlers) {
             const auto& cloned_body = copy_loop(linear_ir, loop_end->get_id());
-            linear_ir.insert(main_body_begin_it, cloned_body.begin(), cloned_body.end());
-            const auto& loop_end_it = std::prev(cloned_body.end());
-            handlers.run(linear_ir, cloned_body.begin(), loop_end_it);
-            return ov::as_type_ptr<op::LoopEnd>(loop_end_it->get()->get_node());
+            lowered::LinearIR::constExprIt start = linear_ir.insert(main_body_begin_it, cloned_body.begin(), cloned_body.end());
+            const auto cloned_loop_end = *std::prev(cloned_body.end());
+            auto end = linear_ir.find_after(start, cloned_loop_end);
+            handlers.run(linear_ir, start, end);
+            return ov::as_type_ptr<op::LoopEnd>(cloned_loop_end->get_node());
         };
 
         const bool specific_first_iteration = !handlers[LoopInfo::FIRST_ITER].empty();

@@ -42,15 +42,15 @@ public:
     class LoopInfo {
     public:
         enum {UNDEFINED_DIM_IDX = std::numeric_limits<size_t>::max()};
+        // This enum is used for loop specific iterations handlers enumeration
+        enum {FIRST_ITER, MAIN_BODY, LAST_ITER};
         LoopInfo() = default;
         LoopInfo(size_t work_amount, size_t increment,
                  const std::vector<LoopPort>& entries,
-                 const std::vector<LoopPort>& exits,
-                 bool outer_splited_loop = false);
+                 const std::vector<LoopPort>& exits);
         LoopInfo(size_t work_amount, size_t increment,
                  const std::vector<ExpressionPort>& entries,
-                 const std::vector<ExpressionPort>& exits,
-                 bool outer_splited_loop = false);
+                 const std::vector<ExpressionPort>& exits);
 
         std::shared_ptr<LoopInfo> clone_with_new_expr(const ExressionMap& expr_map) const;
 
@@ -60,7 +60,7 @@ public:
         size_t get_increment() const;
         const std::vector<LoopPort>& get_entry_points() const;
         const std::vector<LoopPort>& get_exit_points() const;
-        bool get_outer_splited_loop() const;
+        const std::vector<lowered::pass::PassPipeline>& get_handlers() const;
 
         // Sets dim_idx to all entry and exit points
         void set_dim_idx(size_t dim_idx);
@@ -68,10 +68,8 @@ public:
         void set_increment(size_t increment);
         void set_entry_points(std::vector<LoopPort> entry_points);
         void set_exit_points(std::vector<LoopPort> exit_points);
-        void set_outer_splited_loop(bool outer_splited_loop);
-
-        enum {FIRST_ITER, MAIN_BODY, LAST_ITER};
-        std::vector<lowered::pass::PassPipeline> handlers;
+        void set_handlers(std::vector<lowered::pass::PassPipeline> handlers);
+        void set_default_handlers();
 
     private:
         size_t m_work_amount = 0;
@@ -82,8 +80,7 @@ public:
         // Note: Scalars aren't entry expressions but can be before first entry expr in Linear IR
         std::vector<LoopPort> m_entry_points = {};
         std::vector<LoopPort> m_exit_points = {};
-        // True if this Loop is outer Loop for nested Loops that splits the same dimension
-        bool m_outer_splited_loop = false;
+        std::vector<lowered::pass::PassPipeline> m_handlers = {};
     };
     using LoopInfoPtr = std::shared_ptr<LoopInfo>;
 
@@ -112,16 +109,14 @@ public:
                      const std::vector<T>& entries,
                      const std::vector<T>& exits,
                      bool set_default_handlers = true) {
-        if (increment > work_amount)
-            increment = work_amount;
-        const auto loop_info = std::make_shared<LoopManager::LoopInfo>(work_amount, increment, entries, exits);
+        const auto loop_info = std::make_shared<LoopManager::LoopInfo>(work_amount, std::min(increment, work_amount), entries, exits);
         loop_info->set_dim_idx(dim_idx);
         const auto loop_id = this->add_loop_info(loop_info);
         for (auto expr_it = loop_begin_pos; expr_it != loop_end_pos; ++expr_it) {
             insert_loop_id(*expr_it, loop_id);
         }
         if (set_default_handlers) {
-            set_default_loop_handlers(loop_info);
+            loop_info->set_default_handlers();
         }
         return loop_id;
     }
@@ -142,7 +137,7 @@ public:
             insert_loop_id(*expr_it, loop_id);
         }
         if (set_default_handlers) {
-            set_default_loop_handlers(loop_info);
+            loop_info->set_default_handlers();
         }
         return loop_id;
     }
@@ -209,7 +204,6 @@ public:
                                 size_t loop_id, bool loop_ops_inserted = false);
 
     LoopPort get_loop_port_by_expr_port(const ExpressionPort& expr_port, const size_t loop_id);
-    static void set_default_loop_handlers(const LoopInfoPtr& loop_info);
 
 private:
     static void get_io_loop_ports(LinearIR::constExprIt loop_begin_pos,
@@ -221,8 +215,8 @@ private:
                                 std::vector<LinearIR::LoopManager::LoopPort>& entry_points,
                                 size_t loop_id);
     static std::vector<lowered::pass::PassPipeline> fuse_loop_handlers(
-        std::vector<lowered::pass::PassPipeline>& lhs,
-        std::vector<lowered::pass::PassPipeline>& rhs);
+        const std::vector<lowered::pass::PassPipeline>& lhs,
+        const std::vector<lowered::pass::PassPipeline>& rhs);
 
     /* ===== The methods for work with Loop IDs of Expression ===== */
     // Notes:

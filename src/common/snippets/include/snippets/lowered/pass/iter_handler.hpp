@@ -6,12 +6,19 @@
 
 #include "snippets/lowered/linear_ir.hpp"
 #include "snippets/lowered/pass/pass.hpp"
-#include "snippets/op/loop.hpp"
 
 namespace ov {
 namespace snippets {
 namespace lowered {
 namespace pass {
+/**
+ * @interface UpdateMemoryAccessOps
+ * @brief The pass changes counts of all MemoryAccess ops in the Loop
+ * @attention The pass skips inner loops
+ * @attention The pass ignores memory access ports which have count == 1
+ * @param m_count - count which must be set
+ * @ingroup snippets
+ */
 class UpdateMemoryAccessOps : public pass::RangedPass {
 public:
     UpdateMemoryAccessOps(size_t count);
@@ -22,6 +29,12 @@ private:
     size_t m_count;
 };
 
+/**
+ * @interface SetFillOffset
+ * @brief The pass changes offset of all Fill ops in the Loop
+ * @param m_offset - offset which must be set
+ * @ingroup snippets
+ */
 class SetFillOffset : public pass::RangedPass {
 public:
     SetFillOffset(size_t offset);
@@ -32,6 +45,12 @@ private:
     size_t m_offset;
 };
 
+/**
+ * @interface TransformInnerSplitLoop
+ * @brief The pass updates finalization offsets, work amount and increment of inner Loop basing on tail_size of the current Loop
+ * @param m_tail_size - tail_size of the current Loop
+ * @ingroup snippets
+ */
 class TransformInnerSplitLoop : public pass::RangedPass {
 public:
     TransformInnerSplitLoop(size_t tail_size);

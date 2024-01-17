@@ -48,10 +48,12 @@ static void init_linear_ir(const std::vector<ov::PartialShape>& in_shapes, Linea
     loop_manager->mark_loop(expr_it, std::next(expr_it), blocked_wa, blocked_inc, 1, loop_entry_points, loop_exit_points);
     const auto loop_id = loop_manager->mark_loop(expr_it, std::next(expr_it), outer_wa, outer_inc, 1, loop_entry_points, loop_exit_points);
     const auto& outer_loop_info = loop_manager->get_loop_info(loop_id);
-    outer_loop_info->set_outer_splited_loop(true);
     const auto outer_tail_size = outer_wa % outer_inc;
-    if (outer_tail_size != 0)
-        outer_loop_info->handlers[LinearIR::LoopManager::LoopInfo::LAST_ITER].register_pass<pass::TransformInnerSplitLoop>(outer_tail_size);
+    if (outer_tail_size != 0) {
+        auto handlers = outer_loop_info->get_handlers();
+        handlers[LinearIR::LoopManager::LoopInfo::LAST_ITER].register_pass<pass::TransformInnerSplitLoop>(outer_tail_size);
+        outer_loop_info->set_handlers(handlers);
+    }
 }
 
 static void apply_transformations(LinearIR& linear_ir, const std::shared_ptr<pass::PassConfig>& config) {

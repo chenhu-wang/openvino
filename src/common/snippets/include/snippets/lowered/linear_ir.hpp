@@ -74,7 +74,7 @@ public:
 
     const container& get_ops() const { return m_expressions; }
     const io_container& get_IO_ops() const { return m_io_expressions; }
-    Config get_config() const { return m_config; }
+    const Config& get_config() const { return m_config; }
     void set_loop_depth(size_t loop_depth) { m_config.m_loop_depth = loop_depth; }
 
     const ExpressionPtr& get_expr_by_node(const std::shared_ptr<Node>& n) const;
