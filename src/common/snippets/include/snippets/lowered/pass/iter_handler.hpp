@@ -12,17 +12,17 @@ namespace snippets {
 namespace lowered {
 namespace pass {
 /**
- * @interface UpdateMemoryAccessOps
+ * @interface UpdateMemoryAccessCounts
  * @brief The pass changes counts of all MemoryAccess ops in the Loop
  * @attention The pass skips inner loops
  * @attention The pass ignores memory access ports which have count == 1
  * @param m_count - count which must be set
  * @ingroup snippets
  */
-class UpdateMemoryAccessOps : public pass::RangedPass {
+class UpdateMemoryAccessCounts : public pass::RangedPass {
 public:
-    UpdateMemoryAccessOps(size_t count);
-    OPENVINO_RTTI("UpdateMemoryAccessOps", "RangedPass")
+    UpdateMemoryAccessCounts(size_t count);
+    OPENVINO_RTTI("UpdateMemoryAccessCounts", "RangedPass")
     bool run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) override;
 
 private:

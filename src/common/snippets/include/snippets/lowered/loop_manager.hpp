@@ -47,10 +47,12 @@ public:
         LoopInfo() = default;
         LoopInfo(size_t work_amount, size_t increment,
                  const std::vector<LoopPort>& entries,
-                 const std::vector<LoopPort>& exits);
+                 const std::vector<LoopPort>& exits,
+                 const std::vector<lowered::pass::PassPipeline>& handlers = {});
         LoopInfo(size_t work_amount, size_t increment,
                  const std::vector<ExpressionPort>& entries,
-                 const std::vector<ExpressionPort>& exits);
+                 const std::vector<ExpressionPort>& exits,
+                 const std::vector<lowered::pass::PassPipeline>& handlers = {});
 
         std::shared_ptr<LoopInfo> clone_with_new_expr(const ExressionMap& expr_map) const;
 

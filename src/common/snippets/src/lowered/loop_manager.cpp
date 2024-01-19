@@ -42,11 +42,13 @@ std::shared_ptr<LoopPort> LoopPort::clone_with_new_expr(const ExpressionPtr& new
 LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
                                           size_t increment,
                                           const std::vector<LoopPort>& entries,
-                                          const std::vector<LoopPort>& exits)
+                                          const std::vector<LoopPort>& exits,
+                                          const std::vector<lowered::pass::PassPipeline>& handlers)
     : m_work_amount(work_amount),
       m_increment(increment),
       m_entry_points(entries),
-      m_exit_points(exits) {
+      m_exit_points(exits),
+      m_handlers(handlers) {
     // Note: loop info always contain at least 3 set of handlers:
     // 1. For first loop iteration
     // 2. For main loop body
@@ -57,9 +59,11 @@ LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
 LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
                                           size_t increment,
                                           const std::vector<ExpressionPort>& entries,
-                                          const std::vector<ExpressionPort>& exits)
+                                          const std::vector<ExpressionPort>& exits,
+                                          const std::vector<lowered::pass::PassPipeline>& handlers)
     : m_work_amount(work_amount),
-      m_increment(increment) {
+      m_increment(increment),
+      m_handlers(handlers) {
     m_entry_points.reserve(entries.size());
     m_exit_points.reserve(exits.size());
     for (const auto& port : entries)
@@ -88,9 +92,7 @@ std::shared_ptr<LoopInfo> LoopInfo::clone_with_new_expr(const ExressionMap& expr
     const auto& new_entry_points = clone_loop_ports(m_entry_points);
     const auto& new_exit_points = clone_loop_ports(m_exit_points);
 
-    auto new_info = std::make_shared<LoopInfo>(m_work_amount, m_increment, new_entry_points, new_exit_points);
-    new_info->set_handlers(m_handlers);
-    return new_info;
+    return std::make_shared<LoopInfo>(m_work_amount, m_increment, new_entry_points, new_exit_points, m_handlers);
 }
 
 size_t LoopInfo::get_work_amount() const {
@@ -158,7 +160,7 @@ void LoopInfo::set_handlers(std::vector<lowered::pass::PassPipeline> handlers) {
 void LoopInfo::set_default_handlers() {
     const auto tail_size = get_work_amount() % get_increment();
     if (tail_size != 0) {
-        m_handlers[LoopInfo::LAST_ITER].register_pass<lowered::pass::UpdateMemoryAccessOps>(tail_size);
+        m_handlers[LoopInfo::LAST_ITER].register_pass<lowered::pass::UpdateMemoryAccessCounts>(tail_size);
         m_handlers[LoopInfo::LAST_ITER].register_pass<lowered::pass::UpdateSubtensors>(tail_size);
     }
 }

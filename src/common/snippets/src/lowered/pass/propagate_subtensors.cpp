@@ -19,11 +19,13 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
                                               const LinearIR::LoopManager::LoopInfoPtr& loop_info,
                                               LinearIR::container::const_iterator begin,
                                               LinearIR::container::const_iterator end,
-                                              const size_t new_dim_value) {
+                                              bool most_outer_loop,
+                                              const size_t new_dim_value = SIZE_MAX) {
+    OPENVINO_ASSERT(snippets::utils::implication(most_outer_loop, new_dim_value != SIZE_MAX),
+                    "if the updated subtensor propagation was called for the outer loop, new_dim_value must not be equal to default value");
     std::map<lowered::PortDescriptorPtr, snippets::VectorDims> original_shapes;
-    static constexpr size_t existing_subtensor_value = SIZE_MAX;
     // First step: set new dim value to the corresponding entry_points' dimensions
-    if (new_dim_value != existing_subtensor_value) {
+    if (most_outer_loop) {
         for (const auto& port : loop_info->get_entry_points()) {
             const auto& reg_type = port.expr_port->get_descriptor_ptr()->get_reg().type;
             if ((port.is_incremented && reg_type == RegType::gpr) || (reg_type == RegType::vec)) {
@@ -101,11 +103,11 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
             const auto inner_end = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
 
             // The corresponding shapes of inner loops entry points must be updated using existing subtensor values
-            if (new_dim_value == existing_subtensor_value) {
+            if (!most_outer_loop) {
                 for (const auto& port : loop_info->get_entry_points())
                     update_only_dim_idx_with_subtensor_value(port);
             }
-            propagate_updated_subtensor_through_loop(linear_ir, inner_loop_info, inner_begin, inner_end, existing_subtensor_value);
+            propagate_updated_subtensor_through_loop(linear_ir, inner_loop_info, inner_begin, inner_end, false);
             expr_it = inner_end;
             continue;
         }
@@ -134,12 +136,14 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
 UpdateSubtensors::UpdateSubtensors(size_t tail_size) : RangedPass(), m_tail_size(tail_size) {}
 
 bool UpdateSubtensors::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
-    const auto& expr = *end;
-    const auto node = expr->get_node();
-    const auto loop_end = ov::as_type_ptr<op::LoopEnd>(node);
+    const auto& last_expr = *end;
+    const auto last_node = last_expr->get_node();
+    const auto loop_end = ov::as_type_ptr<op::LoopEnd>(last_node);
+    OPENVINO_ASSERT(loop_end, "the last operation in range must be LoopEnd");
+
     const auto& loop_manager = linear_ir.get_loop_manager();
     const auto& loop_info = loop_manager->get_loop_info(loop_end->get_id());
-    propagate_updated_subtensor_through_loop(linear_ir, loop_info, std::next(begin), end, m_tail_size);
+    propagate_updated_subtensor_through_loop(linear_ir, loop_info, begin, end, true, m_tail_size);
     return true;
 }
 

@@ -15,10 +15,10 @@ namespace ov {
 namespace snippets {
 namespace lowered {
 namespace pass {
-UpdateMemoryAccessOps::UpdateMemoryAccessOps(size_t count) : RangedPass(), m_count(count) {}
+UpdateMemoryAccessCounts::UpdateMemoryAccessCounts(size_t count) : RangedPass(), m_count(count) {}
 
-bool UpdateMemoryAccessOps::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
-    for (auto expr_it = std::next(begin); expr_it != end; expr_it++) {
+bool UpdateMemoryAccessCounts::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
+    for (auto expr_it = begin; expr_it != end; expr_it++) {
         // Skip inner Loops
         const auto loop_begin = ov::as_type_ptr<op::LoopBegin>(expr_it->get()->get_node());
         if (loop_begin) {
@@ -48,7 +48,7 @@ bool UpdateMemoryAccessOps::run(LinearIR& linear_ir, LinearIR::constExprIt begin
 SetFillOffset::SetFillOffset(size_t offset) : RangedPass(), m_offset(offset) {}
 
 bool SetFillOffset::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
-    for (auto expr_it = std::next(begin); expr_it != end; expr_it++) {
+    for (auto expr_it = begin; expr_it != end; expr_it++) {
         const auto& node = expr_it->get()->get_node();
         if (const auto fill = ov::as_type_ptr<ov::snippets::op::Fill>(node)) {
             fill->set_offset(m_offset);
@@ -70,7 +70,7 @@ bool TransformInnerSplitLoop::run(LinearIR& linear_ir, LinearIR::constExprIt beg
                     "Outer splitted loop unexpectedly iterates by several dimension indices");
 
     bool modified = false;
-    for (auto it = std::next(begin); it != end; ++it) {
+    for (auto it = begin; it != end; ++it) {
         const auto& expr = *it;
         const auto inner_loop_end = ov::as_type_ptr<op::LoopEnd>(expr->get_node());
         if (!inner_loop_end)

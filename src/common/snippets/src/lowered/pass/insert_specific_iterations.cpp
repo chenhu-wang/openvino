@@ -80,8 +80,10 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
         const auto increment = loop_info->get_increment();
         const auto& handlers = loop_info->get_handlers();
 
-        const auto main_body_begin_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end->get_loop_begin()));
-        const auto main_body_end_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
+        const auto main_loop_begin_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end->get_loop_begin()));
+        const auto main_loop_end_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
+        // Note: handlers must be run on the range started with the first operation in the loop body.
+        const auto main_first_body_op_it = std::next(main_loop_begin_it);
 
         auto update_loop_params = [&loop_manager](const std::shared_ptr<op::LoopEnd>& loop_end_copy,
                                                   size_t new_work_amount,
@@ -100,16 +102,17 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
 
         auto copy_and_run_specific_handlers = [&](const PassPipeline& handlers) {
             const auto& cloned_body = copy_loop(linear_ir, loop_end->get_id());
-            lowered::LinearIR::constExprIt start = linear_ir.insert(main_body_begin_it, cloned_body.begin(), cloned_body.end());
+            lowered::LinearIR::constExprIt start = linear_ir.insert(main_loop_begin_it, cloned_body.begin(), cloned_body.end());
             const auto cloned_loop_end = *std::prev(cloned_body.end());
             auto end = linear_ir.find_after(start, cloned_loop_end);
-            handlers.run(linear_ir, start, end);
+            // Note: handlers must be run on the range started with the first operation in the loop body.
+            handlers.run(linear_ir, std::next(start), end);
             return ov::as_type_ptr<op::LoopEnd>(cloned_loop_end->get_node());
         };
 
         const bool specific_first_iteration = !handlers[LoopInfo::FIRST_ITER].empty();
         if (work_amount == increment) {
-            handlers[LoopInfo::FIRST_ITER].run(linear_ir, main_body_begin_it, main_body_end_it);
+            handlers[LoopInfo::FIRST_ITER].run(linear_ir, main_first_body_op_it, main_loop_end_it);
         } else {
             if (specific_first_iteration) {
                 const auto loop_end_copy = copy_and_run_specific_handlers(handlers[LoopInfo::FIRST_ITER]);
@@ -124,10 +127,10 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
                     const auto new_work_amount = work_amount - reduce_value;
                     update_loop_params(loop_end_copy, new_work_amount, increment, true);
                 }
-                handlers[LoopInfo::LAST_ITER].run(linear_ir, main_body_begin_it, main_body_end_it);
+                handlers[LoopInfo::LAST_ITER].run(linear_ir, main_first_body_op_it, main_loop_end_it);
                 update_loop_params(loop_end, tail_size, tail_size, false);
             } else if (specific_first_iteration) {
-                handlers[LoopInfo::MAIN_BODY].run(linear_ir, main_body_begin_it, main_body_end_it);
+                handlers[LoopInfo::MAIN_BODY].run(linear_ir, main_first_body_op_it, main_loop_end_it);
                 update_loop_params(loop_end, work_amount - increment, increment, false);
             }
         }

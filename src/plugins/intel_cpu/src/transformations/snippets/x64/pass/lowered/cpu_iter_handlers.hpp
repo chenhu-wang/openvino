@@ -24,7 +24,7 @@ public:
              snippets::lowered::LinearIR::constExprIt end) override;
 
 private:
-    size_t m_beta;
+    float m_beta;
 };
 }  // namespace pass
 }  // namespace intel_cpu
