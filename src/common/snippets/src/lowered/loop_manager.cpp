@@ -39,28 +39,73 @@ std::shared_ptr<LoopPort> LoopPort::clone_with_new_expr(const ExpressionPtr& new
     return new_loop_port;
 }
 
-LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
-                                          size_t increment,
-                                          const std::vector<LoopPort>& entries,
-                                          const std::vector<LoopPort>& exits,
-                                          const std::vector<lowered::pass::PassPipeline>& handlers)
+LoopInfo::SpecificIterationHandlers::SpecificIterationHandlers(size_t loop_work_amount, size_t loop_increment) {
+    const auto tail_size = loop_work_amount % loop_increment;
+    if (tail_size != 0) {
+        m_last_iter_handlers.register_pass<lowered::pass::UpdateMemoryAccessCounts>(tail_size);
+        m_last_iter_handlers.register_pass<lowered::pass::UpdateSubtensors>(tail_size);
+    }
+}
+
+LoopInfo::SpecificIterationHandlers::SpecificIterationHandlers(lowered::pass::PassPipeline first_iter_handlers,
+                                                               lowered::pass::PassPipeline main_body_handlers,
+                                                               lowered::pass::PassPipeline last_iter_handlers)
+    : m_first_iter_handlers(std::move(first_iter_handlers)),
+      m_main_body_handlers(std::move(main_body_handlers)),
+      m_last_iter_handlers(std::move(last_iter_handlers)) {}
+
+const lowered::pass::PassPipeline& LoopInfo::SpecificIterationHandlers::get_first_iter_handelrs() const {
+    return m_first_iter_handlers;
+}
+
+const lowered::pass::PassPipeline& LoopInfo::SpecificIterationHandlers::get_main_iter_handelrs() const {
+    return m_main_body_handlers;
+}
+
+const lowered::pass::PassPipeline& LoopInfo::SpecificIterationHandlers::get_last_iter_handelrs() const {
+    return m_last_iter_handlers;
+}
+
+LoopInfo::SpecificIterationHandlers LoopInfo::SpecificIterationHandlers::merge_loop_handlers(
+    const LoopInfo::SpecificIterationHandlers& lhs,
+    const LoopInfo::SpecificIterationHandlers& rhs) {
+    auto merge_handlers_pipelines = [](const lowered::pass::PassPipeline& lhs, const lowered::pass::PassPipeline& rhs) {
+        auto merged_pipeline = lhs;
+        const auto& merged_passes = merged_pipeline.get_passes();
+        for (const auto& pass : rhs.get_passes()) {
+            auto pred = [&pass](const std::shared_ptr<lowered::pass::PassBase>& p) {
+                return p->get_type_info() == pass->get_type_info();
+            };
+            if (std::find_if(merged_passes.begin(), merged_passes.end(), pred) == merged_passes.end()) {
+                merged_pipeline.register_pass(pass);
+            }
+        }
+        return merged_pipeline;
+    };
+
+    LoopInfo::SpecificIterationHandlers merged_handlers(
+        merge_handlers_pipelines(lhs.get_first_iter_handelrs(), rhs.get_first_iter_handelrs()),
+        merge_handlers_pipelines(lhs.get_main_iter_handelrs(), rhs.get_main_iter_handelrs()),
+        merge_handlers_pipelines(lhs.get_last_iter_handelrs(), rhs.get_last_iter_handelrs()));
+    return merged_handlers;
+}
+
+LoopInfo::LoopInfo(size_t work_amount,
+                   size_t increment,
+                   const std::vector<LoopPort>& entries,
+                   const std::vector<LoopPort>& exits,
+                   const LoopInfo::SpecificIterationHandlers& handlers)
     : m_work_amount(work_amount),
       m_increment(increment),
       m_entry_points(entries),
       m_exit_points(exits),
-      m_handlers(handlers) {
-    // Note: loop info always contain at least 3 set of handlers:
-    // 1. For first loop iteration
-    // 2. For main loop body
-    // 3. For last loop iteration
-    m_handlers.resize(3);
-}
+      m_handlers(handlers) {}
 
-LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
-                                          size_t increment,
-                                          const std::vector<ExpressionPort>& entries,
-                                          const std::vector<ExpressionPort>& exits,
-                                          const std::vector<lowered::pass::PassPipeline>& handlers)
+LoopInfo::LoopInfo(size_t work_amount,
+                   size_t increment,
+                   const std::vector<ExpressionPort>& entries,
+                   const std::vector<ExpressionPort>& exits,
+                   const LoopInfo::SpecificIterationHandlers& handlers)
     : m_work_amount(work_amount),
       m_increment(increment),
       m_handlers(handlers) {
@@ -70,11 +115,6 @@ LinearIR::LoopManager::LoopInfo::LoopInfo(size_t work_amount,
         m_entry_points.emplace_back(port);
     for (const auto& port : exits)
         m_exit_points.emplace_back(port);
-    // Note: loop info always contain at least 3 set of handlers:
-    // 1. For first loop iteration
-    // 2. For main loop body
-    // 3. For last loop iteration
-    m_handlers.resize(3);
 }
 
 std::shared_ptr<LoopInfo> LoopInfo::clone_with_new_expr(const ExressionMap& expr_map) const {
@@ -111,11 +151,11 @@ const std::vector<LoopPort>& LoopInfo::get_exit_points() const {
     return m_exit_points;
 }
 
-const std::vector<lowered::pass::PassPipeline>& LoopInfo::get_handlers() const {
+LoopInfo::SpecificIterationHandlers& LoopInfo::get_handlers() {
     return m_handlers;
 }
 
-size_t LinearIR::LoopManager::LoopInfo::get_dim_idx() const {
+size_t LoopInfo::get_dim_idx() const {
     OPENVINO_ASSERT(!m_entry_points.empty(), "Loop info must have at least one entry point");
     auto equal_dim_idxes = [&](const LinearIR::LoopManager::LoopPort& p) {
         return p.dim_idx == m_entry_points[0].dim_idx;
@@ -153,16 +193,8 @@ void LoopInfo::set_exit_points(std::vector<LoopPort> exit_points) {
     m_exit_points = std::move(exit_points);
 }
 
-void LoopInfo::set_handlers(std::vector<lowered::pass::PassPipeline> handlers) {
+void LoopInfo::set_handlers(LoopInfo::SpecificIterationHandlers handlers) {
     m_handlers = std::move(handlers);
-}
-
-void LoopInfo::set_default_handlers() {
-    const auto tail_size = get_work_amount() % get_increment();
-    if (tail_size != 0) {
-        m_handlers[LoopInfo::LAST_ITER].register_pass<lowered::pass::UpdateMemoryAccessCounts>(tail_size);
-        m_handlers[LoopInfo::LAST_ITER].register_pass<lowered::pass::UpdateSubtensors>(tail_size);
-    }
 }
 
 bool operator==(const LinearIR::LoopManager::LoopPort& lhs, const LinearIR::LoopManager::LoopPort& rhs) {
@@ -404,13 +436,13 @@ size_t LinearIR::LoopManager::replace_with_new_loop(const LinearIR& linear_ir,
                                                     const std::vector<LoopPort>& entries,
                                                     const std::vector<LoopPort>& exits,
                                                     const size_t old_id) {
-    const auto loop_info = std::make_shared<LoopManager::LoopInfo>(work_amount, increment, entries, exits);
+    const auto old_loop_info = this->get_loop_info(old_id);
+    const auto loop_info = std::make_shared<LoopManager::LoopInfo>(work_amount, increment, entries, exits, old_loop_info->get_handlers());
     const auto loop_id = this->add_loop_info(loop_info);
     for (auto expr_it = loop_begin_pos; expr_it != loop_end_pos; ++expr_it) {
         replace_loop_id(*expr_it, old_id, loop_id);
     }
 
-    const auto old_loop_info = this->get_loop_info(old_id);
     const auto old_loop_begin_pos = linear_ir.find(old_loop_info->get_entry_points().front().expr_port->get_expr());
     const auto old_loop_end_pos = linear_ir.find(old_loop_info->get_exit_points().back().expr_port->get_expr());
     // If new bounds are equal to old loop bounds, this means that old Loop is removed totally from LIR
@@ -450,7 +482,7 @@ void LinearIR::LoopManager::fuse_loops(LinearIR::constExprIt loop_begin_target, 
     loop_info->set_entry_points(new_entries);
     loop_info->set_exit_points(new_exits);
 
-    loop_info->set_handlers(fuse_loop_handlers(loop_info_upper->get_handlers(), loop_info_lower->get_handlers()));
+    loop_info->set_handlers(LoopInfo::SpecificIterationHandlers::merge_loop_handlers(loop_info_upper->get_handlers(), loop_info_lower->get_handlers()));
     // Since fusion can be called for broadcastable loops (one of the loops has work_amount = increment = 1),
     // maximum value is set to the fused loop
     loop_info->set_work_amount(std::max(loop_info_upper->get_work_amount(), loop_info_lower->get_work_amount()));

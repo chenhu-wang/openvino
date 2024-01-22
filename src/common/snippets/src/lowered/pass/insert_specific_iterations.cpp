@@ -110,27 +110,27 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
             return ov::as_type_ptr<op::LoopEnd>(cloned_loop_end->get_node());
         };
 
-        const bool specific_first_iteration = !handlers[LoopInfo::FIRST_ITER].empty();
+        const bool specific_first_iteration = !handlers.get_first_iter_handelrs().empty();
         if (work_amount == increment) {
-            handlers[LoopInfo::FIRST_ITER].run(linear_ir, main_first_body_op_it, main_loop_end_it);
+            handlers.get_first_iter_handelrs().run(linear_ir, main_first_body_op_it, main_loop_end_it);
         } else {
             if (specific_first_iteration) {
-                const auto loop_end_copy = copy_and_run_specific_handlers(handlers[LoopInfo::FIRST_ITER]);
+                const auto loop_end_copy = copy_and_run_specific_handlers(handlers.get_first_iter_handelrs());
                 update_loop_params(loop_end_copy, increment, increment, true);
             }
 
             const auto tail_size = work_amount % increment;
             if (tail_size != 0) {
                 if (!specific_first_iteration || work_amount > 2 * increment) {
-                    const auto loop_end_copy = copy_and_run_specific_handlers(handlers[LoopInfo::MAIN_BODY]);
+                    const auto loop_end_copy = copy_and_run_specific_handlers(handlers.get_main_iter_handelrs());
                     const auto reduce_value = specific_first_iteration ? tail_size + increment : tail_size;
                     const auto new_work_amount = work_amount - reduce_value;
                     update_loop_params(loop_end_copy, new_work_amount, increment, true);
                 }
-                handlers[LoopInfo::LAST_ITER].run(linear_ir, main_first_body_op_it, main_loop_end_it);
+                handlers.get_last_iter_handelrs().run(linear_ir, main_first_body_op_it, main_loop_end_it);
                 update_loop_params(loop_end, tail_size, tail_size, false);
             } else if (specific_first_iteration) {
-                handlers[LoopInfo::MAIN_BODY].run(linear_ir, main_first_body_op_it, main_loop_end_it);
+                handlers.get_main_iter_handelrs().run(linear_ir, main_first_body_op_it, main_loop_end_it);
                 update_loop_params(loop_end, work_amount - increment, increment, false);
             }
         }

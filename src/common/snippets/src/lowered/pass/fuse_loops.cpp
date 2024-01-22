@@ -48,8 +48,6 @@ bool FuseLoops::can_be_fused(const LoopInfoPtr& loop_current, const LoopInfoPtr&
     const auto target_work_amount = loop_target->get_work_amount();
     const auto current_increment = loop_current->get_increment();
     const auto target_increment = loop_target->get_increment();
-    const auto& current_handlers = loop_current->get_handlers();
-    const auto& target_handlers = loop_target->get_handlers();
     // Loop fusion is supported only if Loops have equal/broadcastable increments and work amounts.
     // Note: For example, Broadcastable work amounts are possible in the following case:
     //     Relu_0 [16x1]     Relu_1 [16x128]
@@ -60,16 +58,15 @@ bool FuseLoops::can_be_fused(const LoopInfoPtr& loop_current, const LoopInfoPtr&
     //  - Relu_1 and Add with work amount `128` and increment `vector size`
     // We can fuse them into one Loop with work amount `128` and increment `vector size`
 
-    const bool handlers_sizes_match = current_handlers.size() == target_handlers.size();
     // WA: we can't fuse 2 loops if one of them has first iteration handler but second hasn't,
     // because in this case Main/Tail body handlers of the loop wo first iter handler must be reset with new parameters
     // (e.g. tail size). This logic is not implemented for now, so fusion for such loops is skipped.
-    const bool first_iter_handlers_match = current_handlers[LoopManager::LoopInfo::FIRST_ITER].empty() ==
-                                           target_handlers[LoopManager::LoopInfo::FIRST_ITER].empty();
+    const bool first_iter_handlers_match = loop_current->get_handlers().get_first_iter_handelrs().empty() ==
+                                           loop_target->get_handlers().get_first_iter_handelrs().empty();
     const bool equal_parameters = current_work_amount == target_work_amount && current_increment == target_increment;
     const bool current_bcastable = current_work_amount == 1 && current_increment == 1;
     const bool target_bcastable = target_work_amount == 1 && target_increment == 1;
-    return handlers_sizes_match && first_iter_handlers_match && (equal_parameters || current_bcastable || target_bcastable);
+    return first_iter_handlers_match && (equal_parameters || current_bcastable || target_bcastable);
 }
 
 void FuseLoops::move(LinearIR& linear_ir, const LinearIR::LoopManagerPtr& loop_manager, size_t loop_id,

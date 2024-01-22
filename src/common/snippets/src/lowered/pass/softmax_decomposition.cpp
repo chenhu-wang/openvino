@@ -21,6 +21,7 @@ namespace lowered {
 namespace pass {
 
 using LoopInfo = LinearIR::LoopManager::LoopInfo;
+using HandlerType = LoopInfo::SpecificIterationHandlers::HandlerType;
 
 SoftmaxDecomposition::SoftmaxDecomposition(size_t vector_size) : m_vector_size{vector_size} {}
 
@@ -76,9 +77,7 @@ bool SoftmaxDecomposition::run(LinearIR& linear_ir, lowered::LinearIR::constExpr
             const auto& reduce_max_loop_info = loop_manager->get_loop_info(reduce_max_loop_id);
             const auto tail_size = inner_work_amount % inner_increment;
             if (tail_size != 0) {
-                auto handlers = reduce_max_loop_info->get_handlers();
-                handlers[LoopInfo::LAST_ITER].register_pass<SetFillOffset>(tail_size);
-                reduce_max_loop_info->set_handlers(handlers);
+                reduce_max_loop_info->get_handlers().register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
             }
             const auto broadcast_horizon_max = push_node(std::make_shared<op::BroadcastMove>(horizon_max.second, broadcasted_dim));
             const auto vector_buffer_sum = push_node(std::make_shared<op::VectorBuffer>());
@@ -102,9 +101,7 @@ bool SoftmaxDecomposition::run(LinearIR& linear_ir, lowered::LinearIR::constExpr
                                                                                                 (*sum.first)->get_output_port(0)});
             const auto& reduce_sum_loop_info = loop_manager->get_loop_info(reduce_sum_loop_id);
             if (tail_size != 0) {
-                auto handlers = reduce_sum_loop_info->get_handlers();
-                handlers[LoopInfo::LAST_ITER].register_pass<SetFillOffset>(tail_size);
-                reduce_sum_loop_info->set_handlers(handlers);
+                reduce_sum_loop_info->get_handlers().register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
             }
 
             // Divide is expensive operation, so we decompose it into 1 / x * y, where 1 / x is executed outside loop
