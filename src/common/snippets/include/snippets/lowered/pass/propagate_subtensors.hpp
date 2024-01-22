@@ -24,6 +24,7 @@ public:
     UpdateSubtensors(size_t tail_size);
     OPENVINO_RTTI("UpdateSubtensors", "RangedPass")
     bool run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) override;
+    bool can_be_merged(const std::shared_ptr<pass::PassBase>& other) override;
 
 private:
     size_t m_tail_size;

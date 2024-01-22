@@ -45,6 +45,11 @@ bool UpdateMemoryAccessCounts::run(LinearIR& linear_ir, LinearIR::constExprIt be
     return true;
 }
 
+bool UpdateMemoryAccessCounts::can_be_merged(const std::shared_ptr<pass::PassBase>& other) {
+    const auto casted_pass = ov::as_type_ptr<UpdateMemoryAccessCounts>(other);
+    return casted_pass && m_count == casted_pass->m_count;
+}
+
 SetFillOffset::SetFillOffset(size_t offset) : RangedPass(), m_offset(offset) {}
 
 bool SetFillOffset::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
@@ -55,6 +60,11 @@ bool SetFillOffset::run(LinearIR& linear_ir, LinearIR::constExprIt begin, Linear
         }
     }
     return true;
+}
+
+bool SetFillOffset::can_be_merged(const std::shared_ptr<pass::PassBase>& other) {
+    const auto casted_pass = ov::as_type_ptr<SetFillOffset>(other);
+    return casted_pass && m_offset == casted_pass->m_offset;
 }
 
 TransformInnerSplitLoop::TransformInnerSplitLoop(size_t tail_size) : RangedPass(), m_tail_size(tail_size) {}
@@ -99,6 +109,11 @@ bool TransformInnerSplitLoop::run(LinearIR& linear_ir, LinearIR::constExprIt beg
         modified = true;
     }
     return modified;
+}
+
+bool TransformInnerSplitLoop::can_be_merged(const std::shared_ptr<pass::PassBase>& other) {
+    const auto casted_pass = ov::as_type_ptr<TransformInnerSplitLoop>(other);
+    return casted_pass && m_tail_size == casted_pass->m_tail_size;
 }
 
 } // namespace pass

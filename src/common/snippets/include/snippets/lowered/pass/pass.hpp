@@ -39,6 +39,15 @@ public:
     const char* get_type_name() const {
         return get_type_info().name;
     }
+
+    /**
+     * @brief Checks if the current pass can be merged with another one (e.g. during 2 pass pipelines fusion)
+     * @param other  Pointer on the another pass.
+     * @return bool value indicating whether the passes can be merged or not
+     */
+    virtual bool can_be_merged(const std::shared_ptr<PassBase>& other) {
+        return false;
+    }
 };
 
 /**
@@ -81,6 +90,7 @@ public:
     PassPipeline(const std::shared_ptr<PassConfig>& pass_config);
 
     const std::vector<std::shared_ptr<PassBase>>& get_passes() const { return m_passes; }
+    const std::shared_ptr<PassConfig>& get_pass_config() const { return m_pass_config; }
     bool empty() const { return m_passes.empty(); }
 
     void register_pass(const snippets::pass::PassPosition& position, const std::shared_ptr<PassBase>& pass);
@@ -103,6 +113,8 @@ public:
 
     void run(lowered::LinearIR& linear_ir) const;
     void run(lowered::LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) const;
+
+    static PassPipeline merge_pipelines(const PassPipeline& lhs, const PassPipeline& rhs);
 
 private:
     std::shared_ptr<PassConfig> m_pass_config;

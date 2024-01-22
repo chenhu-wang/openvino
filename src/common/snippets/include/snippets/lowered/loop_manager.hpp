@@ -54,6 +54,7 @@ public:
             const lowered::pass::PassPipeline& get_first_iter_handelrs() const;
             const lowered::pass::PassPipeline& get_main_iter_handelrs() const;
             const lowered::pass::PassPipeline& get_last_iter_handelrs() const;
+            SpecificIterationHandlers merge(const SpecificIterationHandlers& other) const;
 
             template <HandlerType Type, typename T, class... Args>
             void register_handler(Args&&... args) {
@@ -71,8 +72,6 @@ public:
                         OPENVINO_THROW("register_handler is called for unknown HandlerType.");
                 }
             }
-
-            static SpecificIterationHandlers merge_loop_handlers(const SpecificIterationHandlers& lhs, const SpecificIterationHandlers& rhs);
 
         private:
             lowered::pass::PassPipeline m_first_iter_handlers;
@@ -98,7 +97,7 @@ public:
         size_t get_increment() const;
         const std::vector<LoopPort>& get_entry_points() const;
         const std::vector<LoopPort>& get_exit_points() const;
-        SpecificIterationHandlers& get_handlers();
+        const SpecificIterationHandlers& get_handlers() const;
 
         // Sets dim_idx to all entry and exit points
         void set_dim_idx(size_t dim_idx);
@@ -107,6 +106,11 @@ public:
         void set_entry_points(std::vector<LoopPort> entry_points);
         void set_exit_points(std::vector<LoopPort> exit_points);
         void set_handlers(SpecificIterationHandlers handlers);
+
+        template <SpecificIterationHandlers::HandlerType Type, typename T, class... Args>
+        void register_handler(Args&&... args) {
+            m_handlers.register_handler<Type, T>(args...);
+        }
 
     private:
         size_t m_work_amount = 0;

@@ -24,6 +24,11 @@ bool SetBrgemmBeta::run(LinearIR& linear_ir, LinearIR::constExprIt begin, Linear
     }
     return true;
 }
+
+bool SetBrgemmBeta::can_be_merged(const std::shared_ptr<snippets::lowered::pass::PassBase>& other) {
+    const auto casted_pass = ov::as_type_ptr<SetBrgemmBeta>(other);
+    return casted_pass && m_beta == casted_pass->m_beta;
+}
 }  // namespace pass
 }  // namespace intel_cpu
 }  // namespace ov

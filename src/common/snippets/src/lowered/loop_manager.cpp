@@ -66,28 +66,11 @@ const lowered::pass::PassPipeline& LoopInfo::SpecificIterationHandlers::get_last
     return m_last_iter_handlers;
 }
 
-LoopInfo::SpecificIterationHandlers LoopInfo::SpecificIterationHandlers::merge_loop_handlers(
-    const LoopInfo::SpecificIterationHandlers& lhs,
-    const LoopInfo::SpecificIterationHandlers& rhs) {
-    auto merge_handlers_pipelines = [](const lowered::pass::PassPipeline& lhs, const lowered::pass::PassPipeline& rhs) {
-        auto merged_pipeline = lhs;
-        const auto& merged_passes = merged_pipeline.get_passes();
-        for (const auto& pass : rhs.get_passes()) {
-            auto pred = [&pass](const std::shared_ptr<lowered::pass::PassBase>& p) {
-                return p->get_type_info() == pass->get_type_info();
-            };
-            if (std::find_if(merged_passes.begin(), merged_passes.end(), pred) == merged_passes.end()) {
-                merged_pipeline.register_pass(pass);
-            }
-        }
-        return merged_pipeline;
-    };
-
-    LoopInfo::SpecificIterationHandlers merged_handlers(
-        merge_handlers_pipelines(lhs.get_first_iter_handelrs(), rhs.get_first_iter_handelrs()),
-        merge_handlers_pipelines(lhs.get_main_iter_handelrs(), rhs.get_main_iter_handelrs()),
-        merge_handlers_pipelines(lhs.get_last_iter_handelrs(), rhs.get_last_iter_handelrs()));
-    return merged_handlers;
+LoopInfo::SpecificIterationHandlers LoopInfo::SpecificIterationHandlers::merge(const LoopInfo::SpecificIterationHandlers& other) const {
+    return LoopInfo::SpecificIterationHandlers(
+        lowered::pass::PassPipeline::merge_pipelines(m_first_iter_handlers, other.get_first_iter_handelrs()),
+        lowered::pass::PassPipeline::merge_pipelines(m_main_body_handlers, other.get_main_iter_handelrs()),
+        lowered::pass::PassPipeline::merge_pipelines(m_last_iter_handlers, other.get_last_iter_handelrs()));
 }
 
 LoopInfo::LoopInfo(size_t work_amount,
@@ -151,7 +134,7 @@ const std::vector<LoopPort>& LoopInfo::get_exit_points() const {
     return m_exit_points;
 }
 
-LoopInfo::SpecificIterationHandlers& LoopInfo::get_handlers() {
+const LoopInfo::SpecificIterationHandlers& LoopInfo::get_handlers() const {
     return m_handlers;
 }
 
@@ -482,7 +465,7 @@ void LinearIR::LoopManager::fuse_loops(LinearIR::constExprIt loop_begin_target, 
     loop_info->set_entry_points(new_entries);
     loop_info->set_exit_points(new_exits);
 
-    loop_info->set_handlers(LoopInfo::SpecificIterationHandlers::merge_loop_handlers(loop_info_upper->get_handlers(), loop_info_lower->get_handlers()));
+    loop_info->set_handlers(loop_info_upper->get_handlers().merge(loop_info_lower->get_handlers()));
     // Since fusion can be called for broadcastable loops (one of the loops has work_amount = increment = 1),
     // maximum value is set to the fused loop
     loop_info->set_work_amount(std::max(loop_info_upper->get_work_amount(), loop_info_lower->get_work_amount()));
