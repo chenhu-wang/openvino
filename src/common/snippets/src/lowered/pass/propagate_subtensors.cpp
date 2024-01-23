@@ -30,8 +30,7 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
             const auto& reg_type = port.expr_port->get_descriptor_ptr()->get_reg().type;
             if ((port.is_incremented && reg_type == RegType::gpr) || (reg_type == RegType::vec)) {
                 const auto& expr = port.expr_port->get_expr();
-                const auto node = expr->get_node();
-                auto desc = port.expr_port->get_descriptor_ptr();
+                const auto& desc = port.expr_port->get_descriptor_ptr();
                 auto subtensor = desc->get_subtensor();
                 if (port.dim_idx < subtensor.size()) {
                     *(subtensor.rbegin() + port.dim_idx) = new_dim_value;
@@ -39,13 +38,12 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
                 }
 
                 const auto parent_desc = expr->get_input_port_connector(port.expr_port->get_index())->get_source().get_descriptor_ptr();
-                const auto& layout = parent_desc->get_layout();
-                const auto& shape = parent_desc->get_shape();
+                const auto& parent_shape = parent_desc->get_shape();
                 if (original_shapes.find(parent_desc) == original_shapes.end()) {
-                    original_shapes[parent_desc] = shape;
+                    original_shapes[parent_desc] = parent_shape;
                 }
-                auto new_shape = shape;
-                new_shape[*(layout.rbegin() + port.dim_idx)] = new_dim_value;
+                auto new_shape = parent_shape;
+                new_shape[*(desc->get_layout().rbegin() + port.dim_idx)] = new_dim_value;
                 parent_desc->set_shape(new_shape);
             }
         }
@@ -54,19 +52,18 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
     auto update_only_dim_idx_with_subtensor_value = [&](const LinearIR::LoopManager::LoopPort& port) {
         const auto& reg_type = port.expr_port->get_descriptor_ptr()->get_reg().type;
         if ((port.is_incremented && reg_type == RegType::gpr) || (reg_type == RegType::vec)) {
-            auto desc = port.expr_port->get_descriptor_ptr();
+            const auto desc = port.expr_port->get_descriptor_ptr();
             const auto expr = port.expr_port->get_expr();
             const auto parent_desc = expr->get_input_port_connector(port.expr_port->get_index())->get_source().get_descriptor_ptr();
 
-            const auto& layout = parent_desc->get_layout();
-            const auto& shape = parent_desc->get_shape();
+            const auto& parent_shape = parent_desc->get_shape();
             const auto& desc_subtensor = desc->get_subtensor();
             if (port.dim_idx < desc_subtensor.size()) {
                 if (original_shapes.find(parent_desc) == original_shapes.end()) {
-                    original_shapes[parent_desc] = shape;
+                    original_shapes[parent_desc] = parent_shape;
                 }
-                auto new_shape = shape;
-                new_shape[*(layout.rbegin() + port.dim_idx)] = *(desc_subtensor.rbegin() + port.dim_idx);
+                auto new_shape = parent_shape;
+                new_shape[*(desc->get_layout().rbegin() + port.dim_idx)] = *(desc_subtensor.rbegin() + port.dim_idx);
                 parent_desc->set_shape(new_shape);
             }
         }
@@ -100,7 +97,7 @@ void propagate_updated_subtensor_through_loop(const LinearIR& linear_ir,
             const auto loop_end = loop_begin->get_loop_end();
             const auto inner_loop_info = linear_ir.get_loop_manager()->get_loop_info(loop_end->get_id());
             const auto inner_begin = std::next(expr_it);
-            const auto inner_end = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
+            const auto inner_end = linear_ir.find_after(inner_begin, linear_ir.get_expr_by_node(loop_end));
 
             // The corresponding shapes of inner loops entry points must be updated using existing subtensor values
             if (!most_outer_loop) {

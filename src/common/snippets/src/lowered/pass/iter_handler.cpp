@@ -18,11 +18,14 @@ namespace pass {
 UpdateMemoryAccessCounts::UpdateMemoryAccessCounts(size_t count) : RangedPass(), m_count(count) {}
 
 bool UpdateMemoryAccessCounts::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
+    bool status = false;
     for (auto expr_it = begin; expr_it != end; expr_it++) {
         // Skip inner Loops
         const auto loop_begin = ov::as_type_ptr<op::LoopBegin>(expr_it->get()->get_node());
         if (loop_begin) {
             expr_it = linear_ir.find(expr_it, end, linear_ir.get_expr_by_node(loop_begin->get_loop_end()));
+            if (expr_it == end)
+                return status;
             continue;
         }
 
@@ -40,9 +43,10 @@ bool UpdateMemoryAccessCounts::run(LinearIR& linear_ir, LinearIR::constExprIt be
                     memory_access->set_output_count(m_count, port);
                 }
             }
+            status = true;
         }
     }
-    return true;
+    return status;
 }
 
 bool UpdateMemoryAccessCounts::can_be_merged(const std::shared_ptr<pass::PassBase>& other) {
@@ -73,6 +77,8 @@ bool TransformInnerSplitLoop::run(LinearIR& linear_ir, LinearIR::constExprIt beg
     const auto& expr = *end;
     const auto node = expr->get_node();
     const auto loop_end = ov::as_type_ptr<op::LoopEnd>(node);
+    OPENVINO_ASSERT(loop_end, "the last operation in range must be LoopEnd");
+
     const auto& loop_manager = linear_ir.get_loop_manager();
     const auto& loop_info = loop_manager->get_loop_info(loop_end->get_id());
     const auto current_dim_idx = loop_info->get_dim_idx();
@@ -102,7 +108,7 @@ bool TransformInnerSplitLoop::run(LinearIR& linear_ir, LinearIR::constExprIt beg
         inner_loop_end->set_increment(std::min(inner_loop_increment, m_tail_size));
         inner_loop_end->set_finalization_offsets(inner_finalization_offsets);
         const auto inner_loop_begin_it = std::find(begin, it, linear_ir.get_expr_by_node(inner_loop_begin));
-        const auto inner_loop_end_it = std::next(end);
+        const auto inner_loop_end_it = std::next(it);
         OPENVINO_ASSERT(inner_loop_begin_it != it, "LoopBegin has not been found!");
         const auto& last_iter_handlers = inner_loop_info->get_handlers().get_last_iter_handelrs();
         last_iter_handlers.run(linear_ir, std::next(inner_loop_begin_it), inner_loop_end_it);

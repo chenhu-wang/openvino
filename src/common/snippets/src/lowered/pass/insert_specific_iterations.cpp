@@ -81,7 +81,7 @@ bool InsertSpecificIterations::run(LinearIR& linear_ir, lowered::LinearIR::const
         const auto& handlers = loop_info->get_handlers();
 
         const auto main_loop_begin_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end->get_loop_begin()));
-        const auto main_loop_end_it = linear_ir.find(linear_ir.get_expr_by_node(loop_end));
+        const auto main_loop_end_it = linear_ir.find_after(main_loop_begin_it, linear_ir.get_expr_by_node(loop_end));
         // Note: handlers must be run on the range started with the first operation in the loop body.
         const auto main_first_body_op_it = std::next(main_loop_begin_it);
 
