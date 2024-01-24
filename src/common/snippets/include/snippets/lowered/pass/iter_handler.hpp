@@ -13,7 +13,7 @@ namespace lowered {
 namespace pass {
 /**
  * @interface UpdateMemoryAccessCounts
- * @brief The pass changes counts of all MemoryAccess ops in the Loop
+ * @brief The pass changes counts of all MemoryAccess ops
  * @attention The pass skips inner loops
  * @attention The pass ignores memory access ports which have count == 1
  * @param m_count - count which must be set
@@ -32,7 +32,7 @@ private:
 
 /**
  * @interface SetFillOffset
- * @brief The pass changes offset of all Fill ops in the Loop
+ * @brief The pass changes offset of all Fill ops
  * @param m_offset - offset which must be set
  * @ingroup snippets
  */

@@ -114,6 +114,13 @@ public:
     void run(lowered::LinearIR& linear_ir) const;
     void run(lowered::LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) const;
 
+    /**
+     * @brief Merges 2 pass pipelines into one
+     * @param lhs first pass pipeline
+     * @param rhs second pass pipeline
+     * @return the merged pass pipeline
+     * @attention the function can not be used in case when one of the pipelines contains passes whose running order is important.
+     */
     static PassPipeline merge_pipelines(const PassPipeline& lhs, const PassPipeline& rhs);
 
 private:
