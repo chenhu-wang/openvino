@@ -11,6 +11,12 @@ namespace snippets {
 namespace lowered {
 namespace pass {
 
+/**
+ * @interface InsertSpecificIterations
+ * @brief Inserts separate loop bodies for first/last iterations if needed.
+ * Also calls previously registered SpecificIterationHandlers for the inserted bodies and the main body.
+ * @ingroup snippets
+ */
 class InsertSpecificIterations : public RangedPass {
 public:
     OPENVINO_RTTI("InsertSpecificIterations", "RangedPass")

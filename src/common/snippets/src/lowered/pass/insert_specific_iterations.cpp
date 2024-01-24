@@ -3,13 +3,12 @@
 //
 
 #include "snippets/lowered/pass/insert_specific_iterations.hpp"
-#include "snippets/lowered/pass/iter_handler.hpp"
 
+#include "snippets/itt.hpp"
 #include "snippets/lowered/linear_ir.hpp"
 #include "snippets/lowered/loop_manager.hpp"
 #include "snippets/snippets_isa.hpp"
 #include "snippets/utils.hpp"
-#include "snippets/itt.hpp"
 
 namespace ov {
 namespace snippets {

@@ -7,7 +7,6 @@
 #include "snippets/lowered/linear_ir.hpp"
 #include "snippets/lowered/loop_manager.hpp"
 #include "snippets/lowered/pass/mark_loops.hpp"
-#include "snippets/lowered/pass/iter_handler.hpp"
 #include "snippets/snippets_isa.hpp"
 #include "snippets/itt.hpp"
 
@@ -74,10 +73,9 @@ bool SoftmaxDecomposition::run(LinearIR& linear_ir, lowered::LinearIR::constExpr
                                                                     std::vector<ExpressionPort>{(*fill_max_tail.first)->get_input_port(0),
                                                                                                 (*max.first)->get_input_port(1)},
                                                                     std::vector<ExpressionPort>{(*max.first)->get_output_port(0)});
-            const auto& reduce_max_loop_info = loop_manager->get_loop_info(reduce_max_loop_id);
             const auto tail_size = inner_work_amount % inner_increment;
             if (tail_size != 0) {
-                reduce_max_loop_info->register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
+                loop_manager->get_loop_info(reduce_max_loop_id)->register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
             }
             const auto broadcast_horizon_max = push_node(std::make_shared<op::BroadcastMove>(horizon_max.second, broadcasted_dim));
             const auto vector_buffer_sum = push_node(std::make_shared<op::VectorBuffer>());
@@ -99,9 +97,8 @@ bool SoftmaxDecomposition::run(LinearIR& linear_ir, lowered::LinearIR::constExpr
                                                                                                 (*sum.first)->get_input_port(1)},
                                                                     std::vector<ExpressionPort>{(*fill_sum_tail.first)->get_output_port(0),
                                                                                                 (*sum.first)->get_output_port(0)});
-            const auto& reduce_sum_loop_info = loop_manager->get_loop_info(reduce_sum_loop_id);
             if (tail_size != 0) {
-                reduce_sum_loop_info->register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
+                loop_manager->get_loop_info(reduce_sum_loop_id)->register_handler<HandlerType::LAST_ITER, SetFillOffset>(tail_size);
             }
 
             // Divide is expensive operation, so we decompose it into 1 / x * y, where 1 / x is executed outside loop

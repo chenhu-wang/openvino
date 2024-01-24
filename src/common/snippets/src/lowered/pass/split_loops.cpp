@@ -5,7 +5,6 @@
 #include "snippets/lowered/pass/split_loops.hpp"
 
 #include "snippets/lowered/pass/fuse_loops.hpp"
-#include "snippets/lowered/pass/iter_handler.hpp"
 #include "snippets/lowered/linear_ir.hpp"
 #include "snippets/lowered/loop_manager.hpp"
 #include "snippets/snippets_isa.hpp"
@@ -33,9 +32,6 @@ bool SplitLoops::can_be_split(const LoopInfoPtr& loop_to_split, const LoopInfoPt
 
 bool SplitLoops::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) {
     OV_ITT_SCOPED_TASK(ov::pass::itt::domains::SnippetsTransform, "Snippets::SplitLoops")
-    if (linear_ir.empty())
-        return false;
-
     const auto& loop_manager = linear_ir.get_loop_manager();
     bool loop_was_split = false;
     for (auto expr_it = begin; expr_it != end; ++expr_it) {

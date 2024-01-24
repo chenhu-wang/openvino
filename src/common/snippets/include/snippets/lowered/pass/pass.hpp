@@ -66,7 +66,7 @@ public:
 };
 
 /**
- * @interface Pass
+ * @interface RangedPass
  * @brief Base class for LIR passes which are performed on a range of a LIR body
  * @ingroup snippets
  */

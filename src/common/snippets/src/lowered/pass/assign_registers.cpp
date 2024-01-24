@@ -229,10 +229,10 @@ bool AssignRegisters::run(LinearIR& linear_ir) {
             for (const auto& out : expr->get_output_port_connectors()) {
                 for (const auto& child_expr_input : out->get_consumers()) {
                     const auto& child_expr = child_expr_input.get_expr();
-                    auto child_it = linear_ir.cbegin();
+                    auto child_it = linear_ir.begin();
                     std::advance(child_it, n);
                     size_t k = n;
-                    while (child_it != linear_ir.cend() && *child_it != child_expr) {
+                    while (child_it != linear_ir.end() && *child_it != child_expr) {
                         child_it++;
                         k++;
                     }

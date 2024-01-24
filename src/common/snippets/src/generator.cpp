@@ -10,7 +10,6 @@
 #include "snippets/lowered/pass/cleanup_loop_offsets.hpp"
 #include "snippets/lowered/pass/insert_specific_iterations.hpp"
 #include "snippets/lowered/pass/optimize_loop_single_evaluation.hpp"
-#include "snippets/lowered/pass/serialize_control_flow.hpp"
 #include "snippets/lowered/pass/pass.hpp"
 #include "snippets/op/kernel.hpp"
 

@@ -8,9 +8,7 @@
 #include "snippets/itt.hpp"
 #include "snippets/lowered/linear_ir.hpp"
 #include "snippets/lowered/loop_manager.hpp"
-#include "snippets/lowered/pass/iter_handler.hpp"
 #include "snippets/lowered/pass/pass.hpp"
-#include "snippets/lowered/pass/propagate_subtensors.hpp"
 #include "snippets/snippets_isa.hpp"
 #include "snippets/utils.hpp"
 #include "transformations/snippets/x64/op/brgemm_cpu.hpp"
@@ -40,9 +38,6 @@ void BrgemmBlocking::move_new_memory_buffer(snippets::lowered::LinearIR& linear_
 
 bool BrgemmBlocking::run(LinearIR& linear_ir, LinearIR::constExprIt begin, LinearIR::constExprIt end) {
     OV_ITT_SCOPED_TASK(ov::pass::itt::domains::SnippetsTransform, "Snippets::BrgemmBlocking")
-    if (linear_ir.empty())
-        return false;
-
     const auto& loop_manager = linear_ir.get_loop_manager();
     auto blocking_loop_exists = [&](const ExpressionPtr& brgemm_expr, const std::shared_ptr<ov::intel_cpu::BrgemmCPU>& brgemm) {
         auto check_port = [&](const LoopPort& p) {
@@ -162,7 +157,6 @@ bool BrgemmBlocking::run(LinearIR& linear_ir, LinearIR::constExprIt begin, Linea
         brgemm_expr->get_input_port_descriptor(0)->set_subtensor(in_0_subtensor);
         brgemm_expr->get_input_port_descriptor(1)->set_subtensor(in_1_subtensor);
         brgemm_expr->get_output_port_descriptor(0)->set_subtensor(out_subtensor);
-
         modified = true;
     }
 

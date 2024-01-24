@@ -18,8 +18,6 @@ InsertPerfCount::InsertPerfCount(std::map<std::string, std::string> boundary_op_
 
 bool InsertPerfCount::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) {
     OV_ITT_SCOPED_TASK(ov::pass::itt::domains::SnippetsTransform, "Snippets::InsertPerfCount")
-    if (linear_ir.empty())
-        return false;
     if (m_boundary_op_names.empty()) {
         const auto& first_op_name = linear_ir.begin()->get()->get_node()->get_friendly_name();
         const auto& last_op_name = linear_ir.rbegin()->get()->get_node()->get_friendly_name();

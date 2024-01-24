@@ -54,7 +54,7 @@ public:
             const lowered::pass::PassPipeline& get_first_iter_handelrs() const;
             const lowered::pass::PassPipeline& get_main_iter_handelrs() const;
             const lowered::pass::PassPipeline& get_last_iter_handelrs() const;
-            SpecificIterationHandlers merge(const SpecificIterationHandlers& other) const;
+            static SpecificIterationHandlers merge_handlers(const SpecificIterationHandlers& lhs, const SpecificIterationHandlers& rhs);
 
             template <HandlerType Type, typename T, class... Args>
             void register_handler(Args&&... args) {
@@ -255,9 +255,6 @@ private:
     static void fuse_loop_ports(std::vector<LinearIR::LoopManager::LoopPort>& exit_points,
                                 std::vector<LinearIR::LoopManager::LoopPort>& entry_points,
                                 size_t loop_id);
-    static std::vector<lowered::pass::PassPipeline> fuse_loop_handlers(
-        const std::vector<lowered::pass::PassPipeline>& lhs,
-        const std::vector<lowered::pass::PassPipeline>& rhs);
 
     /* ===== The methods for work with Loop IDs of Expression ===== */
     // Notes:
