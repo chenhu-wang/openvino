@@ -27,7 +27,8 @@ bool MarkLoops::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, l
         return ov::is_type<ov::op::v0::Result>(node) ||
                ov::is_type<ov::op::v0::Constant>(node) ||
                ov::is_type<ov::op::v0::Parameter>(node) ||
-               ov::is_type<op::RankNormalization>(node);
+               ov::is_type<op::RankNormalization>(node) ||
+               ov::is_type<op::Reshape>(node);
     };
 
     auto are_conflicted = [](const ExpressionPort& lhs, const ExpressionPort& rhs) {
@@ -59,7 +60,8 @@ bool MarkLoops::run(LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, l
             const auto& current_expr = *loop_end_pos;
             const auto& current_node = current_expr->get_node();
             if (ov::is_type<ov::op::v0::Result>(current_node) ||
-                ov::is_type<ov::op::v0::Constant>(current_node))
+                ov::is_type<ov::op::v0::Constant>(current_node) ||
+                ov::is_type<op::Reshape>(current_node))
                 break;
 
             // We finish Loop if

@@ -66,6 +66,7 @@
 #include "transformations/op_conversions/hswish_decomposition.hpp"
 #include "transformations/op_conversions/gru_cell_decomposition.hpp"
 #include "transformations/op_conversions/lstm_cell_decomposition.hpp"
+#include "transformations/op_conversions/group_normalization_decomposition.hpp"
 #include "transformations/op_conversions/mvn6_decomposition.hpp"
 #include "transformations/op_conversions/normalize_l2_decomposition.hpp"
 #include "transformations/op_conversions/reduce_l1_decomposition.hpp"
@@ -417,6 +418,13 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
             return node::NormalizeL2::isSupportedOperation(node, errorMsg);
         },
         ov::pass::NormalizeL2Decomposition);
+
+    // todo: open this callback to go with snippets after reduce decompose merged
+    CPU_SET_CALLBACK_X64(manager,
+        [](const_node_ptr &node) -> bool {
+            return !node->is_dynamic();
+        },
+        ov::pass::GroupNormalizationDecomposition);
 
     CPU_ENABLE_PASS_COMMON(manager, ov::pass::SoftmaxDecomposition);
     CPU_SET_CALLBACK_COMMON(manager,

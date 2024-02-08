@@ -615,6 +615,7 @@ Snippet::SnippetJitExecutor::SnippetJitExecutor(SnippetAttrs attrs, bool is_dyna
     jcp.parallel_executor_ndims = tensorRank;
     generate(&jcp);
     buffer_scratchpad_size = schedule.lowering_result.buffer_scratchpad_size;
+    std::cout << "buffer_scratchpad_size: " << buffer_scratchpad_size << std::endl;
     buffer_scratchpad.resize(buffer_scratchpad_size * parallel_get_max_threads(), 0);
     parallel_exec_domain = schedule.parallel_exec_domain;
     harnessWorkAmount = std::accumulate(parallel_exec_domain.begin(), parallel_exec_domain.end(), 1, std::multiplies<size_t>());
@@ -639,6 +640,13 @@ void Snippet::SnippetJitExecutor::generate(const jit_snippets_compile_args* jcp)
                                     ov::intel_cpu::pass::FuseLoadStoreConvert);
     SNIPPETS_REGISTER_PASS_RELATIVE(Place::After, ov::intel_cpu::pass::FuseLoadStoreConvert,
                                     ov::intel_cpu::pass::SetBrgemmCopyBBuffersShape);
+    //
+    // ov::pass::Manager magr;
+    // std::string xmlo = "original.xml";
+    // std::string bino = "original.bin";
+    // magr.register_pass<ov::pass::Serialize>(xmlo, bino);
+    // magr.run_passes(snippetAttrs.snippet->body_ptr());
+    //
 
     schedule = snippetAttrs.snippet->generate_from_linear_ir(std::make_shared<ov::snippets::lowered::pass::PassConfig>(),
                                                              backend_passes,

@@ -31,11 +31,22 @@ bool PropagateLayout::run(lowered::LinearIR& linear_ir, lowered::LinearIR::const
         if (is_input) {
             // Note that here we consider only the first child (which is usually load),
             // but often there is another child - LoopEnd
-            auto consumer_inputs = target_connector->get_consumers();
-            const auto& first_consumer = consumer_inputs.begin()->get_expr();
-            // If there is a RankNormalization op after a parameter - we should skip it
-            if (is_type<op::RankNormalization>(first_consumer->get_node()))
-                consumer_inputs = first_consumer->get_output_port_connector(0)->get_consumers();
+            // If there is a RankNormalization or Reshape op after a parameter - we should skip it
+            auto first_not_reshape_child = [&]() {
+                auto current_exp = expr;
+                auto first_child = target_connector->get_consumers().begin()->get_expr();
+                while (1) {
+                    if (is_type<op::RankNormalization>(first_child->get_node()) ||
+                        is_type<op::Reshape>(first_child->get_node())) {
+                        current_exp = first_child;
+                        first_child = first_child->get_output_port_connector(0)->get_consumers().begin()->get_expr();
+                    } else {
+                        return current_exp;
+                    }
+                }
+            };
+            const auto& consumer_inputs = first_not_reshape_child()->get_output_port_connector(0)->get_consumers();
+
             std::set<std::vector<size_t>> child_layouts;
             for (const auto& child_input : consumer_inputs) {
                 const auto& child = child_input.get_expr();

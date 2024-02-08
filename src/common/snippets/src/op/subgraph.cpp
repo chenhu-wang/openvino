@@ -7,6 +7,7 @@
 
 #include "snippets/op/subgraph.hpp"
 
+#include "snippets/pass/group_normalization_decomposition.hpp"
 #include "snippets/pass/broadcast_to_movebroadcast.hpp"
 #include "snippets/pass/propagate_precision.hpp"
 #include "snippets/pass/convert_constants.hpp"
@@ -45,6 +46,8 @@
 #include "snippets/lowered/pass/pass_config.hpp"
 #include "snippets/lowered/pass/reduce_decomposition.hpp"
 
+#include "snippets/lowered/pass/serialize_control_flow.hpp"
+
 #include "transformations/utils/utils.hpp"
 
 #include "snippets/pass/manager.hpp"
@@ -77,7 +80,8 @@ auto Subgraph::is_domain_sensitive_op(const std::shared_ptr<ov::Node>& op) -> bo
            ov::is_type<ov::op::v8::Softmax>(op) ||
            ov::is_type<ov::op::v0::MatMul>(op) ||
            ov::is_type<ov::op::v1::Broadcast>(op) || // Broadcast is domain sensetive op because the output shape depends on
-           ov::is_type<ov::op::v3::Broadcast>(op);   // the both input and broadcast shapes (the both - are inputs of op). Note: is used only in MHA pattern
+           ov::is_type<ov::op::v3::Broadcast>(op) ||   // the both input and broadcast shapes (the both - are inputs of op). Note: is used only in MHA pattern
+           ov::is_type<ov::op::v12::GroupNormalization>(op);
 }
 
 void Subgraph::init_config() {
@@ -319,11 +323,19 @@ VectorDims Subgraph::infer_master_shape() {
         OPENVINO_ASSERT(!output_dims.empty(), "Can't calculate master_shape before the first shape inference");
     } else {
         for (const auto& res : body_ptr()->get_results()) {
-            const auto& res_input = res->input(0);
-            OPENVINO_ASSERT(res_input.get_partial_shape().is_static(), "Result have dynamic shape in static pipeline");
-            // We need to account to the shape's layout stored in Output<Node> rt_info
-            const auto& planar_shape = utils::get_preordered_pshape(res_input.get_source_output());
-            output_dims.emplace_back(planar_shape.get_shape());
+            if (auto reshape = ov::as_type_ptr<op::Reshape>(res->get_input_node_shared_ptr(0))) {
+                auto res_input = reshape->input(0);
+                OPENVINO_ASSERT(res_input.get_partial_shape().is_static(), "Result have dynamic shape in static pipeline");
+                // We need to account to the shape's layout stored in Output<Node> rt_info
+                const auto& planar_shape = utils::get_preordered_pshape(res_input.get_source_output());
+                output_dims.emplace_back(planar_shape.get_shape());
+            } else {
+                auto res_input = res->input(0);
+                OPENVINO_ASSERT(res_input.get_partial_shape().is_static(), "Result have dynamic shape in static pipeline");
+                // We need to account to the shape's layout stored in Output<Node> rt_info
+                const auto& planar_shape = utils::get_preordered_pshape(res_input.get_source_output());
+                output_dims.emplace_back(planar_shape.get_shape());
+            }
         }
     }
 
@@ -383,6 +395,9 @@ void Subgraph::data_flow_transformations(const BlockedShapeVector& blocked_input
     OV_ITT_SCOPED_TASK(ov::pass::itt::domains::SnippetsTransform, "Snippets::op::data_flow_transformations")
 
     ov::snippets::pass::Manager manager;
+    // GroupNormalizationDecomposition should be before canonicalization(rankNorm) as scale/bias shape is C and need special process.
+    if (config.m_has_domain_sensitive_ops)
+        manager.register_pass<snippets::pass::GroupNormalizationDecomposition>();
     if (!blocked_input_shapes.empty())
         manager.register_pass<snippets::pass::Canonicalization>(blocked_input_shapes);
     if (!input_precisions.empty() && !output_precisions.empty())
@@ -478,6 +493,11 @@ snippets::Schedule Subgraph::generate_from_linear_ir(const std::shared_ptr<lower
         perf_count_pass.run(linear_ir, linear_ir.cbegin(), linear_ir.cend());
     }
 #endif
+    //
+    // std::string xmlo = "LIR.xml";
+    // lowered::pass::SerializeControlFlow SerializeLIR(xmlo);
+    // SerializeLIR.run(linear_ir);
+    //
     m_generator->generate(linear_ir, lowering_result, compile_params);
 
     VectorDims parallel_exec_domain = linear_ir.get_master_shape();

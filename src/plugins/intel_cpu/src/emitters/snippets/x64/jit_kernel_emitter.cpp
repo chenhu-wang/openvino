@@ -47,7 +47,16 @@ jit_kernel_emitter::jit_kernel_emitter(jit_generator* h, cpu_isa_t isa, const ov
         switch (expr->get_type()) {
             case snippets::lowered::IOExpression::io_type::INPUT: {
                 const auto first_consumer = expr->get_output_port_connector(0)->get_consumers().begin()->get_expr();
-                if (ov::is_type<snippets::op::RankNormalization>(first_consumer->get_node())) {
+                // reshape ranknorm sequence
+                bool if_first_consumer_reshape = ov::is_type<snippets::op::RankNormalization>(first_consumer->get_node()) ||
+                    ov::is_type<snippets::op::Reshape>(first_consumer->get_node());
+                const auto second_consumer = first_consumer->get_output_port_connector(0)->get_consumers().begin()->get_expr();
+                bool if_second_consumer_reshape = if_first_consumer_reshape &&
+                    (ov::is_type<snippets::op::RankNormalization>(second_consumer->get_node()) ||
+                    ov::is_type<snippets::op::Reshape>(second_consumer->get_node()));
+                if (if_second_consumer_reshape) {
+                    desc = second_consumer->get_output_port_descriptor(0);  // create reshape expression, init output desc to target_shape
+                } else if (if_first_consumer_reshape) {
                     desc = first_consumer->get_output_port_descriptor(0);
                 } else {
                     desc = expr->get_output_port_descriptor(0);
@@ -57,8 +66,15 @@ jit_kernel_emitter::jit_kernel_emitter(jit_generator* h, cpu_isa_t isa, const ov
                 break;
             }
             case snippets::lowered::IOExpression::io_type::OUTPUT: {
+                // store->reshape->result yes
+                const auto& source = expr->get_input_port_connector(0)->get_source();
+                auto p_exp = source.get_expr();
+                if (ov::is_type<snippets::op::Reshape>(p_exp->get_node())) {
+                    desc = p_exp->get_input_port_descriptor(0);
+                } else {
+                    desc = expr->get_input_port_descriptor(0);
+                }
                 num_outputs++;
-                desc = expr->get_input_port_descriptor(0);
                 etype = expr->get_node()->get_input_element_type(0);
                 break;
             } default : {

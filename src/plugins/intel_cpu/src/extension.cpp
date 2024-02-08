@@ -132,7 +132,8 @@
     OP_EXTENSION(ov::snippets::op::Store)                    \
     OP_EXTENSION(ov::snippets::op::Subgraph)                 \
     OP_EXTENSION(ov::snippets::op::VectorBuffer)             \
-    OP_EXTENSION(ov::snippets::op::RankNormalization)
+    OP_EXTENSION(ov::snippets::op::RankNormalization)        \
+    OP_EXTENSION(ov::snippets::op::Reshape)
 
 OPENVINO_CREATE_EXTENSIONS(std::vector<ov::Extension::Ptr>(
     {CPU_EXTENSIONS TYPE_RELAXED_EXTENSIONS SNIPPETS_EXTENSIONS SNIPPETS_DEBUG_CAPS_EXTENSIONS}));

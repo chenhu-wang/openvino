@@ -82,12 +82,23 @@ bool AssignRegisters::run(LinearIR& linear_ir) {
                 const auto& consumer_inputs = out_connector->get_consumers();
                 const auto& first_consumer = consumer_inputs.begin()->get_expr();
                 // TODO [96434]: Support RankNormalization (Reshape) in arbitrary place in pipeline, not just after inputs
-                if (ov::is_type<op::RankNormalization>(first_consumer->get_node())) {
-                    OPENVINO_ASSERT(consumer_inputs.size() == 1, "RankNormalization is supposed to be the only consumer");
+                if (ov::is_type<op::RankNormalization>(first_consumer->get_node()) ||
+                    ov::is_type<op::Reshape>(first_consumer->get_node())) {
+                    OPENVINO_ASSERT(consumer_inputs.size() == 1, "RankNormalization or Reshape is supposed to be the only consumer");
                     manually_assigned_gprs[first_consumer->get_output_port_connector(0)] = io_expr->get_index();
+                }
+                const auto& second_consumer = first_consumer->get_output_port_connector(0)->get_consumers().begin()->get_expr();
+                if (ov::is_type<op::RankNormalization>(second_consumer->get_node()) ||
+                    ov::is_type<op::Reshape>(second_consumer->get_node())) {
+                    manually_assigned_gprs[second_consumer->get_output_port_connector(0)] = io_expr->get_index();
                 }
             } else if (io_expr->get_type() == IOExpression::io_type::OUTPUT) {
                 manually_assigned_gprs[expr->get_input_port_connector(0)] = num_parameters + io_expr->get_index();
+                // reshape before result
+                const auto &parent = expr->get_input_port_connector(0)->get_source().get_expr();
+                if (ov::is_type<op::Reshape>(parent->get_node())) {
+                    manually_assigned_gprs[parent->get_input_port_connector(0)] = num_parameters + io_expr->get_index();
+                }
             } else {
                 OPENVINO_THROW("Unsupported io_type detected");
             }
@@ -97,6 +108,14 @@ bool AssignRegisters::run(LinearIR& linear_ir) {
             if (ov::is_type<op::IntermediateMemoryBuffer>(buffer)) {
                 manually_assigned_gprs[expr->get_input_port_connector(0)] =
                         static_cast<Reg>(num_results + num_parameters + buffer_id);
+                // reshape after IntermediateMemoryBuffer
+                const auto& first_consumer = expr->get_output_port_connector(0)->get_consumers().begin()->get_expr();
+                if (ov::is_type<op::Reshape>(first_consumer->get_node())) {
+                    manually_assigned_gprs[first_consumer->get_input_port_connector(0)] =
+                        static_cast<Reg>(num_results + num_parameters + buffer_id);
+                    manually_assigned_gprs[first_consumer->get_output_port_connector(0)] =
+                        static_cast<Reg>(num_results + num_parameters + buffer_id);
+                }
             }
             manually_assigned_gprs[expr->get_output_port_connector(0)] =
                     static_cast<Reg>(num_results + num_parameters + buffer_id);

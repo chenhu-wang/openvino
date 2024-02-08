@@ -4,6 +4,7 @@
 
 #include "snippets/itt.hpp"
 
+#include "snippets/pass/group_norm_tokenization.hpp"
 #include "openvino/pass/manager.hpp"
 #include "snippets/pass/tokenization.hpp"
 #include "snippets/pass/common_optimizations.hpp"
@@ -80,6 +81,7 @@ bool SnippetsTokenization::run_on_model(const std::shared_ptr<ov::Model>& m) {
 
     manager.register_pass<EnumerateNodes>();
     manager.register_pass<ExtractReshapesFromMHA>();
+    manager.register_pass<TokenizeGroupNormSnippets>();
     manager.register_pass<TokenizeMHASnippets>(m_config);
     manager.register_pass<TokenizeSnippets>();
     manager.register_pass<CommonOptimizations>(m_config);
