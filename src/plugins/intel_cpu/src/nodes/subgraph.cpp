@@ -615,7 +615,7 @@ Snippet::SnippetJitExecutor::SnippetJitExecutor(SnippetAttrs attrs, bool is_dyna
     jcp.parallel_executor_ndims = tensorRank;
     generate(&jcp);
     buffer_scratchpad_size = schedule.lowering_result.buffer_scratchpad_size;
-    std::cout << "buffer_scratchpad_size: " << buffer_scratchpad_size << std::endl;
+    // std::cout << "buffer_scratchpad_size: " << buffer_scratchpad_size << std::endl;
     buffer_scratchpad.resize(buffer_scratchpad_size * parallel_get_max_threads(), 0);
     parallel_exec_domain = schedule.parallel_exec_domain;
     harnessWorkAmount = std::accumulate(parallel_exec_domain.begin(), parallel_exec_domain.end(), 1, std::multiplies<size_t>());

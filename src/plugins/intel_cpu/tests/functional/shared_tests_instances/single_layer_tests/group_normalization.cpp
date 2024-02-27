@@ -9,6 +9,8 @@ namespace {
 
 const std::vector<ov::test::ElementType> netPrecisions = {
     ov::element::f32,
+    ov::element::bf16,
+    ov::element::i8
 };
 
 const std::vector<ov::test::InputShape> inputShapes = {
@@ -22,6 +24,10 @@ const std::vector<ov::test::InputShape> inputShapes = {
     {{3, 16, 16, 8, 4}, {{3, 16, 16, 8, 4}}},
     {{3, 32, 16, 8, 100}, {{3, 32, 16, 8, 100}}},
     {{3, 100, 16, 80, 40}, {{3, 100, 16, 80, 40}}},
+    {{1, 8, 8}, {{1, 8, 8}}},
+    {{1, 8, 1, 8, 2}, {{1, 8, 1, 8, 2}}},
+    {{1, 8, 1, 8, 2, 2}, {{1, 8, 1, 8, 2, 2}}},
+    {{1, 8, 1, 8, 2, 2, 2}, {{1, 8, 1, 8, 2, 2, 2}}},
     // dynmaic shape
     {{-1, -1, -1, -1}, {{1, 16, 8, 8}, {2, 8, 4, 4}, {1, 16, 8, 8}}},
     {{{1, 4}, 16, -1, -1}, {{1, 16, 6, 6}, {4, 16, 10, 10}, {1, 16, 6, 6}}}
