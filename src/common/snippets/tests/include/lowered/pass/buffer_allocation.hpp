@@ -17,7 +17,8 @@ typedef std::tuple<
     bool,   // Optimized pipeline
     bool,   // With SplitLoops opt
     size_t, // Expected Buffer size in bytes
-    size_t  // Expected unique Buffer IDs count
+    size_t // Expected unique Buffer IDs count
+    // int     // buffer output inplace
 > BufferAllocationParams;
 
 class BufferAllocationTest : public testing::TestWithParam<BufferAllocationParams> {
@@ -46,6 +47,7 @@ protected:
 
     bool m_is_buffer_optimized = true;
     bool m_with_split_loops = true;
+    int m_buffer_inplace_out = -1;
 };
 
 class EltwiseBufferAllocationTest : public BufferAllocationTest {

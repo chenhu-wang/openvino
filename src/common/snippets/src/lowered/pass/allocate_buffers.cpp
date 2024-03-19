@@ -19,8 +19,8 @@ namespace snippets {
 namespace lowered {
 namespace pass {
 
-AllocateBuffers::AllocateBuffers(size_t& buffer_scratchpad_size, bool is_optimized)
-    : m_buffer_scratchpad_size(buffer_scratchpad_size), m_is_optimized_mode(is_optimized) {}
+AllocateBuffers::AllocateBuffers(size_t& buffer_scratchpad_size, int& buffer_inplace_output, bool is_optimized)
+    : m_buffer_scratchpad_size(buffer_scratchpad_size), m_is_optimized_mode(is_optimized), m_buffer_inplace_output(buffer_inplace_output) {}
 
 void AllocateBuffers::set_buffer_offset(const ExpressionPtr& buffer_expr, const size_t offset) {
     // If Buffer has offset We set this offset in the connected MemoryAccess ops
@@ -78,6 +78,7 @@ bool AllocateBuffers::run(lowered::LinearIR& linear_ir, lowered::LinearIR::const
         pipeline.register_pass<SolveBufferMemory>(m_buffer_scratchpad_size, buffer_clusters);
         pipeline.register_pass<NormalizeBufferIDs>();
         pipeline.run(linear_ir);
+        m_buffer_inplace_output = 0;
     } else {
         InitBuffersDefault(m_buffer_scratchpad_size).run(linear_ir, linear_ir.cbegin(), linear_ir.cend());
     }

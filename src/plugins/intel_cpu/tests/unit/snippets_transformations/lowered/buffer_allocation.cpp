@@ -88,7 +88,8 @@ protected:
         pipeline.register_pass<ov::snippets::lowered::pass::InitLoops>();
         pipeline.register_pass<ov::snippets::lowered::pass::InsertLoops>();
         pipeline.register_pass<ov::intel_cpu::pass::SetBrgemmCopyBBuffersShape>();
-        pipeline.register_pass<ov::snippets::lowered::pass::AllocateBuffers>(m_buffer_scratchpad, m_is_buffer_optimized);
+        int inplace = -1;
+        pipeline.register_pass<ov::snippets::lowered::pass::AllocateBuffers>(m_buffer_scratchpad, inplace, m_is_buffer_optimized);
         pipeline.run(m_linear_ir);
     }
 

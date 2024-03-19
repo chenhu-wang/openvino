@@ -505,16 +505,20 @@ void Snippet::SnippetJitExecutor::exec(const std::vector<MemoryPtr>& inMemPtrs, 
 }
 
 void Snippet::SnippetJitExecutor::update_ptrs(jit_snippets_call_args& call_args,
-    const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs) {
+    const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs, size_t buffer_offset) {
     for (size_t i = 0; i < inMemPtrs.size(); i++)
         call_args.src_ptrs[i] = inMemPtrs[i]->getDataAs<const uint8_t>() + start_offset_in[i];
 
     for (size_t i = 0; i < outMemPtrs.size(); i++)
         call_args.dst_ptrs[i] = outMemPtrs[i]->getDataAs<uint8_t>() + start_offset_out[i];
 
-    if (buffer_scratchpad_size > 0) {
-        call_args.buffer_scratchpad_ptr =
+    if (buffer_inplace_output >= 0) {
+        call_args.buffer_scratchpad_ptr = call_args.dst_ptrs[buffer_inplace_output] + buffer_offset * dataSize[buffer_inplace_output + numInput];
+    } else {
+        if (buffer_scratchpad_size > 0) {
+            call_args.buffer_scratchpad_ptr =
                 reinterpret_cast<uint8_t*>(buffer_scratchpad.data()) + parallel_get_thread_num() * buffer_scratchpad_size;
+        }
     }
 }
 
@@ -547,7 +551,12 @@ void Snippet::SnippetJitExecutor::schedule_6d(const std::vector<MemoryPtr>& inMe
         [&](int64_t d0, int64_t d1, int64_t d2, int64_t d3, int64_t d4) {
             int64_t indexes[] = {d0, d1, d2, d3, d4};
             jit_snippets_call_args call_args;
-            update_ptrs(call_args, inMemPtrs, outMemPtrs);
+            size_t buffer_offset = 0;
+            if (buffer_inplace_output >= 0) {
+                for (size_t i = 0; i < sizeof(indexes) / sizeof(indexes[0]); i++)
+                    buffer_offset += indexes[i] * master_shape_stride[i];
+            }
+            update_ptrs(call_args, inMemPtrs, outMemPtrs, buffer_offset);
             callable(&call_args, indexes);
         });
 }
@@ -558,9 +567,6 @@ void Snippet::SnippetJitExecutor::schedule_nt(const std::vector<MemoryPtr>& inMe
     segfault_detector();
 #endif
     parallel_nt(0, [&](const int ithr, const int nthr) {
-        jit_snippets_call_args call_args;
-        update_ptrs(call_args, inMemPtrs, outMemPtrs);
-
         size_t start = 0, end = 0;
         splitter(harnessWorkAmount, nthr, ithr, start, end);
 
@@ -571,7 +577,13 @@ void Snippet::SnippetJitExecutor::schedule_nt(const std::vector<MemoryPtr>& inMe
                 indexes[j] = static_cast<int64_t>(tmp % work_size[j]);
                 tmp /= work_size[j];
             }
-
+            size_t buffer_offset = 0;
+            if (buffer_inplace_output >= 0) {
+                for (size_t i = 0; i < indexes.size(); i++)
+                    buffer_offset += indexes[i] * master_shape_stride[i];
+            }
+            jit_snippets_call_args call_args;
+            update_ptrs(call_args, inMemPtrs, outMemPtrs, buffer_offset);
             schedule.get_callable<kernel>()(&call_args, indexes.data());
         }
     });
@@ -595,10 +607,10 @@ Snippet::SnippetJitExecutor::SnippetJitExecutor(SnippetAttrs attrs, bool is_dyna
             in_shapes.emplace_back(s);
         snippetAttrs.snippet->shape_infer(in_shapes);
     }
-    const VectorDims& canonicalShape = snippetAttrs.snippet->infer_master_shape();
+    master_shape = snippetAttrs.snippet->infer_master_shape();
 
     // initialize by maximum output dimension. Dimensions of outputs should be broadcastable
-    tensorRank = std::max(static_cast<size_t>(rank6D), canonicalShape.size());
+    tensorRank = std::max(static_cast<size_t>(rank6D), master_shape.size());
     auto initDataSizes = [this]() {
         dataSize.resize(numInput + numOutput);
         for (size_t i = 0; i < numInput; i++)
@@ -608,18 +620,26 @@ Snippet::SnippetJitExecutor::SnippetJitExecutor(SnippetAttrs attrs, bool is_dyna
     };
     initDataSizes();
 
-    if (snippets::utils::is_dynamic_vdims(canonicalShape))
+    if (snippets::utils::is_dynamic_vdims(master_shape))
         OPENVINO_THROW("Snippets: Canonicalization returned dynamic shape in static pipeline");
 
     // generate
     jit_snippets_compile_args jcp;
     jcp.parallel_executor_ndims = tensorRank;
     generate(&jcp);
-    buffer_scratchpad_size = schedule.lowering_result.buffer_scratchpad_size;
-    buffer_scratchpad.resize(buffer_scratchpad_size * parallel_get_max_threads(), 0);
+    buffer_inplace_output = schedule.lowering_result.buffer_inplace_output;
+    if (buffer_inplace_output == -1) {
+        buffer_scratchpad_size = schedule.lowering_result.buffer_scratchpad_size;
+        buffer_scratchpad.resize(buffer_scratchpad_size * parallel_get_max_threads(), 0);
+    }
     parallel_exec_domain = schedule.parallel_exec_domain;
     harnessWorkAmount = std::accumulate(parallel_exec_domain.begin(), parallel_exec_domain.end(), 1, std::multiplies<size_t>());
     parallel_exec_domain = getNormalizedDimsBySize(parallel_exec_domain, tensorRank);
+    master_shape = getNormalizedDimsBySize(master_shape, tensorRank);
+    master_shape_stride = std::vector<size_t>(master_shape.size(), 1);
+    for (int i = master_shape_stride.size() - 2 ; i >= 0; i--) {
+        master_shape_stride[i] = master_shape_stride[i + 1] * master_shape[i + 1];
+    }
 }
 
 void Snippet::SnippetJitExecutor::generate(const jit_snippets_compile_args* jcp) {
