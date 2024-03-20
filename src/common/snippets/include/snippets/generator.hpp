@@ -24,6 +24,7 @@ class Generator;
  * @brief Holds all relevant information produced during lowering
  * @param compiled_snippet pointer to interface class that encapsulates compiled binary code
  * @param buffer_scratchpad_size the amount of additional memory required by the binary code to execute.
+ * @param buffer_inplace_output buffer share memory with subgraph output result. -1 means no sharing. i>=0 means share ith output memory.
  * Must be allocated and freed by the backend.
  */
 class LoweringResult {
@@ -35,6 +36,7 @@ class LoweringResult {
 public:
     std::shared_ptr<CompiledSnippet> compiled_snippet = nullptr;
     size_t buffer_scratchpad_size = 0;
+    int buffer_inplace_output = -1;
 };
 
 /**

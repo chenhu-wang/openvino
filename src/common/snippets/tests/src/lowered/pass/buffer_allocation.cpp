@@ -76,7 +76,7 @@ void BufferAllocationTest::ApplyTransformations(const std::shared_ptr<ov::snippe
     pipeline.register_pass<ov::snippets::lowered::pass::InsertLoadStore>(m_vector_size);
     pipeline.register_pass<ov::snippets::lowered::pass::InitLoops>();
     pipeline.register_pass<ov::snippets::lowered::pass::InsertLoops>();
-    pipeline.register_pass<ov::snippets::lowered::pass::AllocateBuffers>(m_buffer_scratchpad, m_is_buffer_optimized);
+    pipeline.register_pass<ov::snippets::lowered::pass::AllocateBuffers>(m_buffer_scratchpad, m_buffer_inplace_out, m_is_buffer_optimized);
     pipeline.run(m_linear_ir);
 }
 

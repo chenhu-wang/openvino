@@ -101,7 +101,8 @@ private:
             size_t numOutput = 0;
 
             void generate(const jit_snippets_compile_args*);
-            inline void update_ptrs(jit_snippets_call_args&, const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs);
+            inline void update_ptrs(jit_snippets_call_args&, const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs,
+                size_t buffer_offset);
             // Evaluates generated snippet using parallel backend
             void schedule_6d(const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs);
             void schedule_nt(const std::vector<MemoryPtr>& inMemPtrs, const std::vector<MemoryPtr>& outMemPtrs);
@@ -125,6 +126,9 @@ private:
             // Buffer scratchpad
             std::vector<uint8_t> buffer_scratchpad = {};
             size_t buffer_scratchpad_size = 0;
+            int buffer_inplace_output = -1;
+            VectorDims master_shape = {};
+            VectorDims master_shape_stride = {};
 
 #ifdef SNIPPETS_DEBUG_CAPS
             inline void segfault_detector();

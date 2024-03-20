@@ -56,6 +56,8 @@
 #include <memory>
 #include <array>
 
+#include "snippets/lowered/pass/serialize_control_flow.hpp"
+
 using namespace std;
 using namespace ov::op::util;
 
@@ -441,6 +443,12 @@ void Subgraph::data_flow_transformations(const BlockedShapeVector& blocked_input
 
     manager.register_positioned_passes(backend_passes);
     manager.run_passes(body_ptr());
+
+    // ov::pass::Manager magr;
+    // std::string xmlo = "data_flow.xml";
+    // std::string bino = "data_flow.bin";
+    // magr.register_pass<ov::pass::Serialize>(xmlo, bino);
+    // magr.run_passes(body_ptr());
 }
 
 void Subgraph::control_flow_transformations(lowered::LinearIR& linear_ir,
@@ -473,7 +481,8 @@ void Subgraph::control_flow_transformations(lowered::LinearIR& linear_ir,
     pipeline.register_pass<lowered::pass::ValidateLoops>();
     pipeline.register_pass<lowered::pass::InitLoops>();
     pipeline.register_pass<lowered::pass::InsertLoops>();
-    pipeline.register_pass<lowered::pass::AllocateBuffers>(lowering_result.buffer_scratchpad_size, linear_ir.get_config().m_are_buffers_optimized);
+    pipeline.register_pass<lowered::pass::AllocateBuffers>(lowering_result.buffer_scratchpad_size, lowering_result.buffer_inplace_output,
+        linear_ir.get_config().m_are_buffers_optimized);
     pipeline.register_pass<lowered::pass::CleanRepeatedDataPointerShifts>();
     pipeline.register_positioned_passes(lowered_backend_passes);
     pipeline.register_pass<lowered::pass::Validate>(); // must be last
@@ -514,6 +523,11 @@ snippets::Schedule Subgraph::generate_from_linear_ir(const std::shared_ptr<lower
         perf_count_pass.run(linear_ir, linear_ir.cbegin(), linear_ir.cend());
     }
 #endif
+
+    // std::string xmlo = "LIR.xml";
+    // lowered::pass::SerializeControlFlow SerializeLIR(xmlo);
+    // SerializeLIR.run(linear_ir);
+
     m_generator->generate(linear_ir, lowering_result, compile_params);
 
     VectorDims parallel_exec_domain = linear_ir.get_master_shape();
