@@ -346,6 +346,15 @@ Subgraph::Subgraph(const std::shared_ptr<ov::Node>& op, const GraphContext::CPtr
     OPENVINO_ASSERT(tmp_snippet, "Attempt to create Subgraph node from an invalid op type");
     subgraph_attrs->snippet = tmp_snippet->clone();
     subgraph_attrs->bodyHash = getBodyHash(tmp_snippet);
+    //
+    ov::pass::Manager mgr;
+    auto body = tmp_snippet->body_ptr();
+    auto name = body->get_friendly_name();
+    std::string xml = name + ".xml";
+    std::string bin = name + ".bin";
+    mgr.register_pass<ov::pass::Serialize>(xml, bin);
+    mgr.run_passes(body);
+    //
 
 #if defined(OPENVINO_ARCH_ARM64)
     subgraph_attrs->snippet->set_generator(std::make_shared<aarch64::CPUGenerator>(host_isa));
