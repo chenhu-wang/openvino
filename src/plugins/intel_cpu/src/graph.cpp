@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include "utils/my_profiler.hpp"
+
 #include "edge.h"
 #include "graph_dumper.h"
 #include "graph_optimizer.h"
@@ -1124,12 +1126,17 @@ void Graph::PullOutputData(std::unordered_map<std::size_t, ov::SoPtr<ITensor>>& 
 }
 
 void Graph::InferStatic(SyncInferRequest* request) {
+    auto _prof0 = MY_PROFILE("::InferStatic#" + std::to_string(infer_count));
     for (const auto& node : m_executableGraphNodes) {
         VERBOSE(node, getConfig().debugCaps.verbose);
         PERF(node, getConfig().collectPerfCounters);
 
         if (request)
             request->throw_if_canceled();
+
+        auto _prof = MY_PROFILE_ARGS(node->getTypeStr(),
+                                     {{"Name", node->getName()}, {"Impl", node->getPrimitiveDescriptorType()}});
+
         ExecuteNode(node, m_stream);
     }
 }
@@ -1458,7 +1465,8 @@ void Graph::Infer(SyncInferRequest* request) {
         OPENVINO_ASSERT(IsReady(), "Wrong state of the ov::intel_cpu::Graph. Topology is not ready: ", static_cast<int>(status));
     }
 
-    if (infer_count != -1) infer_count++;
+    // if (infer_count != -1) infer_count++;
+    infer_count++;
 }
 
 void Graph::SortTopologically() {

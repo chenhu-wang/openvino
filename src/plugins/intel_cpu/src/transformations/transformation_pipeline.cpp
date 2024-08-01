@@ -929,6 +929,7 @@ void Transformations::MainSnippets(void) {
 
 #if defined(OPENVINO_ARCH_X86_64)
     auto is_supported_matmul = [this](const std::shared_ptr<const ov::Node>& n) {
+        // return true;
         const auto matmul = ov::as_type_ptr<const ov::op::v0::MatMul>(n);
         if (!matmul || matmul->is_dynamic())
             return false;
@@ -1113,9 +1114,21 @@ void Transformations::Snippets(void) {
     if (!useSnippets)
         return;
 
+    ov::pass::Manager mgr0;
+    std::string xml0 = "before_tokenization.xml";
+    std::string bin0 = "before_tokenization.bin";
+    mgr0.register_pass<ov::pass::Serialize>(xml0, bin0);
+    mgr0.run_passes(model);
+
     CPU_DEBUG_CAP_TRANSFORMATION_SCOPE(this, Snippets);
     MainSnippets();
     PostSnippets();
+
+    ov::pass::Manager mgr1;
+    std::string xml1 = "after_tokenization.xml";
+    std::string bin1 = "after_tokenization.bin";
+    mgr1.register_pass<ov::pass::Serialize>(xml1, bin1);
+    mgr1.run_passes(model);
 }
 
 }   // namespace intel_cpu
