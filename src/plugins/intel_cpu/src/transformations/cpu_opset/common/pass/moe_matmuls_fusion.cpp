@@ -19,6 +19,7 @@
 #include "openvino/op/broadcast.hpp"
 #include "openvino/op/clamp.hpp"
 #include "openvino/op/constant.hpp"
+#include "openvino/op/gather.hpp"
 #include "openvino/op/matmul.hpp"
 #include "openvino/op/minimum.hpp"
 #include "openvino/op/multiply.hpp"
@@ -87,9 +88,12 @@ ov::intel_cpu::MoE2GeMMFusion::MoE2GeMMFusion() {
         pattern::wrap_type<ov::op::v1::Minimum>({slice2, pattern::wrap_const()}, pattern::consumers_count(1));
     auto swish_beta = pattern::wrap_const();
     auto swish = pattern::wrap_type<ov::op::v4::Swish>({minimum1, swish_beta}, pattern::consumers_count(1));
+    auto mul1_const = pattern::wrap_const();
+    auto multiply1 = pattern::optional<ov::op::v1::Multiply>({swish, mul1_const}, pattern::consumers_count(1));
 
     // Join: Multiply_2
-    auto multiply2 = pattern::wrap_type<ov::op::v1::Multiply>({add1, swish}, pattern::consumers_count(1));
+    auto multiply2 = pattern::wrap_type<ov::op::v1::Multiply>({add1, multiply1}, pattern::consumers_count(1));
+    // auto multiply2 = pattern::wrap_type<ov::op::v1::Multiply>({add1, swish}, pattern::consumers_count(1));
 
     // Down projection
     auto down_proj_matmul = pattern::wrap_type<ov::op::v0::MatMul>({multiply2, pattern::any_input()},
@@ -156,6 +160,27 @@ ov::intel_cpu::MoE2GeMMFusion::MoE2GeMMFusion() {
                                                                              gate_up_bias_node);
         ov::replace_node_update_name(gate_up_add_node, gate_up_gathered_mm);
 
+        if (pattern_map.count(multiply1)) {
+        // if (0) {
+            const auto mul1 = pattern_map.at(multiply1).get_node_shared_ptr();
+            const auto mul1_const_node = pattern_map.at(mul1_const).get_node_shared_ptr();
+            auto mul1_const_shape = mul1_const_node->get_shape();
+            mul1_const_shape.erase(mul1_const_shape.begin() + 1);
+            auto target_shape = std::make_shared<ov::op::v0::Constant>(ov::element::i64,
+                                                                       ov::Shape{mul1_const_shape.size()},
+                                                                       mul1_const_shape);
+            const auto reshape_const = std::make_shared<ov::op::v1::Reshape>(mul1_const_node, target_shape, false);
+            auto batch_gather =
+                std::make_shared<ov::op::v8::Gather>(reshape_const,
+                                                     active_indices,
+                                                     ov::op::v0::Constant::create(ov::element::i32, {}, {0}));
+            auto transpose =
+                std::make_shared<ov::op::v1::Transpose>(batch_gather,
+                                                        ov::op::v0::Constant::create(ov::element::i64, {2}, {1, 0, 2}));
+            ov::replace_node_update_name(mul1, transpose);
+            validate_nodes(pattern_map, {transpose});
+        }
+
         validate_nodes(pattern_map, {slice1, clamp, add1, slice2, minimum1, swish, multiply2});
 
         const auto down_proj_mm_node = pattern_map.at(down_proj_matmul).get_node_shared_ptr();
@@ -213,6 +238,7 @@ ov::intel_cpu::MoE2GeMMFusion::MoE2GeMMFusion() {
         ov::replace_output_update_name(pattern_map.at(reduce_sum), reshape->output(0));
         // To avoid friendly name duplication
         reshape->set_friendly_name(reshape->get_friendly_name() + "_Reshape");
+        // std::cout << "MoE2GeMMFusion is done" << std::endl;
         return true;
     };
 
