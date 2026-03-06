@@ -1625,8 +1625,7 @@ public:
         auto batch_mem_ptr = scratch.topk_id;
         auto [hidden_states_mem_ptr, hidden_states_layout] = get_input_info(instance, static_cast<size_t>(MOE3GemmInputIndex::HIDDEN_STATES));
         auto routing_mem_ptr = scratch.topk_weights;
-        auto input_layout = instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::HIDDEN_STATES))->get_layout();
-        auto token_num = get_seq_len(input_layout);
+        auto token_num = get_seq_len(hidden_states_layout);
 
         _hidden_size = static_cast<int>(cur_moe->_config.hidden_size);
         _intermediate_size = static_cast<int>(cur_moe->_config.inter_size);
