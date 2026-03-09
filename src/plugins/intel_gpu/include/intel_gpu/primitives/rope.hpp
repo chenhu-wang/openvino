@@ -49,6 +49,7 @@ struct rope : public primitive_base<rope> {
         seed = hash_combine(seed, config.use_rope_cache);
         seed = hash_combine(seed, config.is_ltx_video);
         seed = hash_combine(seed, config.rotary_ndims);
+        seed = hash_combine(seed, config.cos_sin_ndims);
         seed = hash_combine(seed, config.slice_start);
         seed = hash_combine(seed, config.slice_stop);
         seed = hash_combine(seed, gather_rank);
@@ -73,6 +74,7 @@ struct rope : public primitive_base<rope> {
                config.use_rope_cache == rhs_casted.config.use_rope_cache &&
                config.is_ltx_video == rhs_casted.config.is_ltx_video &&
                config.rotary_ndims == rhs_casted.config.rotary_ndims &&
+               config.cos_sin_ndims == rhs_casted.config.cos_sin_ndims &&
                config.slice_start == rhs_casted.config.slice_start &&
                config.slice_stop == rhs_casted.config.slice_stop &&
                gather_rank == rhs_casted.gather_rank;
@@ -93,6 +95,7 @@ struct rope : public primitive_base<rope> {
         ob << config.use_rope_cache;
         ob << config.is_ltx_video;
         ob << config.rotary_ndims;
+        ob << config.cos_sin_ndims;
         ob << config.slice_start;
         ob << config.slice_stop;
         ob << gather_rank;
@@ -113,6 +116,7 @@ struct rope : public primitive_base<rope> {
         ib >> config.use_rope_cache;
         ib >> config.is_ltx_video;
         ib >> config.rotary_ndims;
+        ib >> config.cos_sin_ndims;
         ib >> config.slice_start;
         ib >> config.slice_stop;
         ib >> gather_rank;
