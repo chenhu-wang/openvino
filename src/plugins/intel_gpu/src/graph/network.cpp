@@ -36,6 +36,7 @@
 #include "reshape_inst.h"
 #include "kv_cache_inst.h"
 #include "fused_conv_inst.h"
+#include "linear_attention_inst.h"
 #include "program_helpers.h"
 #include "program_dump_graph.h"
 
@@ -1060,6 +1061,18 @@ void network::allocate_primitive_instance(program_node const& node) {
                                  prim.get(),
                                  nullptr,
                                  false);
+    } else if (node.is_type<linear_attention>()) {
+        auto prim = node.as<linear_attention>().get_primitive();
+        if (!prim->variable_info.variable_id.empty()) {
+            OPENVINO_ASSERT(node.get_output_layouts().size() >= 2,
+                            "[GPU] linear_attention expects 2 outputs to register variable state");
+            set_variables_state_info(prim->variable_info.variable_id,
+                                     node.get_output_layout(1),
+                                     prim->variable_info.data_type,
+                                     prim.get(),
+                                     nullptr,
+                                     false);
+        }
     }
 
     if (node.is_constant()) {
