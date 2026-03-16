@@ -12,7 +12,16 @@ if(NOT PYTHON_TAG)
     message(FATAL_ERROR "Failed to detect Python Tag via packaging.tags. Please, check 'packaging' dependency version update")
 endif()
 
-execute_process(COMMAND ${Python3_EXECUTABLE} -c "from setuptools.command.bdist_wheel import get_abi_tag; print(f'{get_abi_tag()}')"
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import importlib; module = None
+for name in ('setuptools.command.bdist_wheel', 'wheel.bdist_wheel'):
+    try:
+        module = importlib.import_module(name)
+        break
+    except ModuleNotFoundError:
+        pass
+if module is None:
+    raise ModuleNotFoundError('bdist_wheel module is unavailable')
+print(f'{module.get_abi_tag()}')"
                 OUTPUT_VARIABLE ABI_TAG OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(NOT ABI_TAG)
     message(FATAL_ERROR "Failed to detect ABI Tag via setuptools.command.bdist_wheel. Please, check 'setuptools' dependency version update")
