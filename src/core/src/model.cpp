@@ -36,7 +36,7 @@ void check_all_variables_registered(const std::vector<shared_ptr<ov::Node>>& ord
     std::stringstream unregistered_variables;
     for (auto& node : ordered_ops) {
         const auto& variable_op = dynamic_pointer_cast<ov::op::util::VariableExtension>(node);
-        if (variable_op && variable_op->get_variable() &&
+        if (variable_op &&
             std::find(variables.begin(), variables.end(), variable_op->get_variable()) == variables.end())
             unregistered_variables << variable_op->get_variable_id() << std::endl;
     }
@@ -65,9 +65,7 @@ ov::op::util::VariableVector auto_detect_variables(const std::vector<std::shared
     unordered_set<ov::op::util::Variable::Ptr> variables;
     for (const auto& op : ordered_ops) {
         if (const auto& variable_op = dynamic_pointer_cast<ov::op::util::VariableExtension>(op)) {
-            if (variable_op->get_variable()) {
-                variables.insert(variable_op->get_variable());
-            }
+            variables.insert(variable_op->get_variable());
         }
     }
     return ov::op::util::VariableVector(variables.begin(), variables.end());
@@ -258,7 +256,7 @@ void ov::Model::validate_nodes_and_infer_types() const {
             unregistered_parameters << node << std::endl;
 
         const auto& variable_op = dynamic_pointer_cast<op::util::VariableExtension>(node);
-        if (variable_op && variable_op->get_variable() &&
+        if (variable_op &&
             std::find(m_variables.begin(), m_variables.end(), variable_op->get_variable()) == m_variables.end())
             unregistered_variables << variable_op->get_variable_id() << std::endl;
     }

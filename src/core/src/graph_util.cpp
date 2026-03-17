@@ -213,11 +213,9 @@ std::shared_ptr<Model> clone_ov_model(const Model& func, std::unordered_map<Node
     }
     if (!variables.empty()) {
         for (const auto& op : node_map) {
-            if (auto read_val = std::dynamic_pointer_cast<ov::op::util::VariableExtension>(op.second);
-                read_val && read_val->get_variable()) {
+            if (auto read_val = std::dynamic_pointer_cast<ov::op::util::VariableExtension>(op.second)) {
                 read_val->set_variable(var_map.at(read_val->get_variable_id()));
-            } else if (auto assign = std::dynamic_pointer_cast<ov::op::util::VariableExtension>(op.second);
-                       assign && assign->get_variable()) {
+            } else if (auto assign = std::dynamic_pointer_cast<ov::op::util::VariableExtension>(op.second)) {
                 assign->set_variable(var_map.at(assign->get_variable_id()));
             }
         }

@@ -73,17 +73,13 @@ LinearAttention::LinearAttention(const ov::OutputVector& args, const std::shared
 bool LinearAttention::visit_attributes(ov::AttributeVisitor& visitor) {
     OV_OP_SCOPE(LinearAttention_visit_attributes);
 
-    // LinearAttention supports both variable-backed and stateless forms.
-    // Only serialize/deserialize variable attributes when variable is present
-    // (or when deserialization creates one from IR attributes).
+    visitor.on_attribute("variable_id", m_variable);
+    OPENVINO_ASSERT(m_variable, "Variable is not initialized.");
 
-    if (m_variable) {
-        visitor.on_attribute("variable_id", m_variable);
-        auto variable_info = m_variable->get_info();
-        visitor.on_attribute("variable_type", variable_info.data_type);
-        visitor.on_attribute("variable_shape", variable_info.data_shape);
-        m_variable->update(variable_info);
-    }
+    auto variable_info = m_variable->get_info();
+    visitor.on_attribute("variable_type", variable_info.data_type);
+    visitor.on_attribute("variable_shape", variable_info.data_shape);
+    m_variable->update(variable_info);
 
     return true;
 }
