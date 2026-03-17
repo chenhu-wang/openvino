@@ -702,7 +702,9 @@ void XmlSerializer::on_adapter(const std::string& name, ov::ValueAccessor<void>&
             special_body_ports_on_adapter(a->get(), parameter_mapping, result_mapping, port_map);
         }
     } else if (const auto& a = ov::as_type<ov::AttributeAdapter<std::shared_ptr<ov::op::util::Variable>>>(&adapter)) {
-        m_xml_node.append_attribute(name.c_str()).set_value(a->get()->get_info().variable_id.c_str());
+        if (const auto& variable = a->get()) {
+            m_xml_node.append_attribute(name.c_str()).set_value(variable->get_info().variable_id.c_str());
+        }
     } else if (ov::is_type<ov::AttributeAdapter<std::shared_ptr<ov::StringAlignedBuffer>>>(&adapter) ||
                ov::is_type<ov::AttributeAdapter<std::shared_ptr<ov::SharedStringAlignedBuffer>>>(&adapter)) {
         if (name == "value" && translate_type_name(m_node_type_name) == "Const") {
