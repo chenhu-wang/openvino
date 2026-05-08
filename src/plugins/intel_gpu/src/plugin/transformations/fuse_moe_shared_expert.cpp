@@ -15,6 +15,7 @@
 #include "openvino/op/multiply.hpp"
 #include "openvino/op/reshape.hpp"
 #include "openvino/op/sigmoid.hpp"
+#include "openvino/op/subtract.hpp"
 #include "openvino/op/swish.hpp"
 #include "openvino/pass/pattern/op/optional.hpp"
 #include "openvino/pass/pattern/op/or.hpp"
@@ -22,6 +23,33 @@
 #include "transformations/utils/utils.hpp"
 
 namespace ov::intel_gpu {
+
+#define MOE_COMPRESSED_SHARED_EXPERT_PATTERN(SUFFIX)\
+    auto gemm3_compressed_weights_m_##SUFFIX = wrap_type<ov::op::v0::Constant>(type_matches_any({ov::element::u4, ov::element::u8, ov::element::i4, ov::element::i8}));\
+    auto gemm3_zp_m_##SUFFIX = wrap_type<ov::op::v0::Constant>(type_matches_any({ov::element::u4, ov::element::u8, ov::element::i4, ov::element::i8}));\
+    \
+    auto gemm3_weight_convert_m_##SUFFIX = wrap_type<ov::op::v0::Convert>({gemm3_compressed_weights_m_##SUFFIX}, type_matches(ov::element::f16));\
+    auto gemm3_zp_convert_m_##SUFFIX = wrap_type<ov::op::v0::Convert>({gemm3_zp_m_##SUFFIX}, type_matches(ov::element::f16));\
+    auto gemm3_sub_m_##SUFFIX = wrap_type<ov::op::v1::Subtract>({gemm3_weight_convert_m_##SUFFIX, gemm3_zp_convert_m_##SUFFIX});\
+    \
+    auto gemm3_scale_m_##SUFFIX = wrap_type<ov::op::v0::Constant>(type_matches(ov::element::f16));\
+    /* Asymmetric: Convert -> Subtract(zp) -> Multiply(scale) */\
+    auto gemm3_mul_asym_m_##SUFFIX = wrap_type<ov::op::v1::Multiply>({gemm3_sub_m_##SUFFIX, gemm3_scale_m_##SUFFIX});\
+    /* Symmetric: Convert -> Multiply(scale), no Subtract */\
+    auto gemm3_mul_sym_m_##SUFFIX = wrap_type<ov::op::v1::Multiply>({gemm3_weight_convert_m_##SUFFIX, gemm3_scale_m_##SUFFIX});\
+    auto gemm3_mul_m_##SUFFIX = std::make_shared<ov::pass::pattern::op::Or>(OutputVector{gemm3_mul_asym_m_##SUFFIX, gemm3_mul_sym_m_##SUFFIX});\
+    \
+    auto gemm3_reshape_ungroup_##SUFFIX = [](const ov::Output<ov::Node>& output) {\
+        auto in_ps = output.get_node()->get_input_partial_shape(0);\
+        auto out_ps = output.get_node()->get_output_partial_shape(0);\
+        return in_ps.rank().is_static() && out_ps.rank().is_static() &&\
+        ((in_ps.size() == 4 && out_ps.size() == 3) || (in_ps.size() == 3 && out_ps.size() == 2));\
+    };\
+    \
+    auto gemm3_reshape_const_m_##SUFFIX = wrap_type<ov::op::v0::Constant>();\
+    auto gemm3_reshape_m_##SUFFIX = optional<ov::op::v1::Reshape>({gemm3_mul_m_##SUFFIX, gemm3_reshape_const_m_##SUFFIX}, gemm3_reshape_ungroup_##SUFFIX);\
+    \
+    auto gemm3_convert_m_##SUFFIX = wrap_type<ov::op::v0::Convert>({gemm3_reshape_m_##SUFFIX}, type_matches(ov::element::f32));
 
 FuseMOESharedExpert::FuseMOESharedExpert() {
     using namespace ov::pass::pattern;
@@ -48,18 +76,18 @@ FuseMOESharedExpert::FuseMOESharedExpert() {
     //   shared_down = MatMul(shared_mul, shared_down_weight)
     //   Optional gating: sigmoid(MatMul(shared_hidden, gate_gate_weight)) * shared_down
     //   Optional reshape before Add
+    MOE_COMPRESSED_SHARED_EXPERT_PATTERN(gate)
+    MOE_COMPRESSED_SHARED_EXPERT_PATTERN(up)
+    MOE_COMPRESSED_SHARED_EXPERT_PATTERN(down)
     auto shared_hidden_states_m = any_input();
-    auto shared_gate_weight_m = any_input();
-    auto shared_gate_m = wrap_type<ov::op::v0::MatMul>({shared_hidden_states_m, shared_gate_weight_m});
+    auto shared_gate_m = wrap_type<ov::op::v0::MatMul>({shared_hidden_states_m, gemm3_convert_m_gate});
     auto shared_swish_m = wrap_type<ov::op::v4::Swish>({shared_gate_m});
-    auto shared_up_weight_m = any_input();
-    auto shared_up_m = wrap_type<ov::op::v0::MatMul>({shared_hidden_states_m, shared_up_weight_m});
+    auto shared_up_m = wrap_type<ov::op::v0::MatMul>({shared_hidden_states_m, gemm3_convert_m_up});
     // Multiply is commutative: handle both input orders
     auto shared_mul_m_1 = wrap_type<ov::op::v1::Multiply>({shared_swish_m, shared_up_m});
     auto shared_mul_m_2 = wrap_type<ov::op::v1::Multiply>({shared_up_m, shared_swish_m});
     auto shared_mul_m = std::make_shared<ov::pass::pattern::op::Or>(OutputVector{shared_mul_m_1, shared_mul_m_2});
-    auto shared_down_weight_m = any_input();
-    auto shared_down_m = wrap_type<ov::op::v0::MatMul>({shared_mul_m, shared_down_weight_m});
+    auto shared_down_m = wrap_type<ov::op::v0::MatMul>({shared_mul_m, gemm3_convert_m_down});
 
     // Optional sigmoid gating: sigmoid(MatMul(hidden, gate_gate)) * down
     auto shared_gate_gate_wei_m = any_input();
@@ -95,9 +123,9 @@ FuseMOESharedExpert::FuseMOESharedExpert() {
             moe->input_value(3),                   // gate weight (decompressed)
             moe->input_value(4),                   // up weight (decompressed)
             moe->input_value(5),                   // down weight (decompressed)
-            pattern_map.at(shared_gate_weight_m),  // shared gate weight
-            pattern_map.at(shared_up_weight_m),    // shared up weight
-            pattern_map.at(shared_down_weight_m),  // shared down weight
+            pattern_map.at(gemm3_convert_m_gate),  // shared gate weight
+            pattern_map.at(gemm3_convert_m_up),    // shared up weight
+            pattern_map.at(gemm3_convert_m_down),  // shared down weight
         };
 
         // Use shared_gate_sigmoid_m to reliably detect whether the gating branch matched.
